@@ -486,7 +486,8 @@ def ensure_deps(work_dir: Path) -> tuple:
             ["npx", "-y", "esbuild", str(entry_path),
              "--bundle", "--format=iife",
              f"--outfile={bundle_path}", "--platform=browser"],
-            capture_output=True, text=True, timeout=60, cwd=str(work_dir)
+            capture_output=True, text=True, timeout=60, cwd=str(work_dir),
+            shell=True
         )
         if entry_path.exists():
             entry_path.unlink()
