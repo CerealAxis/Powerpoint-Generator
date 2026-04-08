@@ -32,9 +32,9 @@
 | 特性 | 说明 |
 |------|------|
 | **6步Pipeline** | 需求 → 搜索 → 大纲 → 策划 → 设计 → 后处理，模拟专业 PPT 公司工作流 |
-| **8种预置风格** | 暗黑科技 / 小米橙 / 蓝白商务 / 朱红宫墙 / 清新自然 / 紫金奢华 / 极简灰白 / 活力彩虹 |
-| **Bento Grid 布局** | 7 种卡片式灵活布局，内容驱动版式 |
-| **智能配图** | AI 生成配图 + 5 种视觉融入技法（渐隐融合/色调蒙版/氛围底图等） |
+| **16种预置风格** | 暗黑科技 / 小米橙 / 蓝白商务 / 朱红宫墙 / 清新自然 / 紫金奢华 / 极简灰白 / 活力彩虹 / 渐变蓝 / 暖阳夕照 / 北欧极简 / 赛博朋克 / 优雅金 / 深海蓝 / 复古胶片 / 稳重蓝 |
+| **Bento Grid 布局** | 7 种卡片式灵活布局 + 6 种新增卡片类型（时间线/对比/引用/统计块/特性网格/图文叠加） |
+| **智能配图** | Unsplash 图库 + 5 种视觉融入技法（渐隐融合/色调蒙版/氛围底图等） |
 | **排版系统** | 7 级字号阶梯 + 间距层级 + 中英文混排规则 |
 | **色彩比例** | 60-30-10 法则 + accent 色使用约束 |
 | **数据可视化** | 8 种纯 CSS/SVG 图表（进度条/环形图/迷你折线/点阵图/KPI 卡等） |
@@ -58,11 +58,33 @@
 - **Python** >= 3.8
 - **python-pptx**（PPTX 生成）
 
+**可选（用于配图）：**
+- **Unsplash API Key**：从 [Unsplash Developers](https://unsplash.com/developers) 申请
+
 **一键安装：**
 ```bash
 pip install python-pptx lxml Pillow
 npm install puppeteer dom-to-svg
 ```
+
+## 配图配置（可选）
+
+项目支持 Unsplash 免费图库作为配图来源。配置步骤：
+
+1. 申请 API Key：[Unsplash Developers](https://unsplash.com/developers) → New Application → 获取 Access Key
+
+2. 配置环境变量：
+   ```bash
+   # 复制模板文件
+   copy .env.example .env
+   
+   # 编辑 .env，填入你的 Access Key
+   UNSPLASH_ACCESS_KEY=你的_Access_Key
+   ```
+
+3. 使用 `.env` 文件时，API Key 不会提交到 Git 仓库（已配置 .gitignore）
+
+> 不配置也可使用，Agent 会使用纯文字/数据驱动的设计方式。
 
 ## 目录结构
 
@@ -71,10 +93,12 @@ ppt-agent-skill/
   SKILL.md                    # 主工作流指令（Agent 入口）
   README.md                   # 本文件
   README_EN.md                # English documentation
+  .env.example                # 环境变量模板（Unsplash API Key）
   references/
     prompts.md                # 5 套 Prompt 模板
-    style-system.md           # 8 种预置风格 + CSS 变量
-    bento-grid.md             # 7 种布局规格 + 卡片类型
+    style-system.md           # 16 种预置风格 + CSS 变量
+    bento-grid.md             # 7 种布局规格 + 12 种卡片类型
+    card-demo.html            # 卡片类型演示
     method.md                 # 核心方法论
   scripts/
     html_packager.py          # 多页 HTML 合并为翻页预览

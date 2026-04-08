@@ -83,11 +83,12 @@
    - 必须包含的内容（如特定产品线、某个项目成果）
    - 必须回避的内容（如敏感竞品、未公开数据）
    - 视觉风格偏好（如公司有品牌规范）
-   - **AI 配图偏好**：
-     - A. 不需要配图（纯文字/数据驱动）
-     - B. 只在关键页面配图（封面 + 章节封面，约 3-5 张）
-     - C. 每页都配图（全页氛围感最强，生成时间较长）
-     - D. 用户提供图片素材（请提供图片路径）
+    - **AI 配图偏好**：
+      - A. 不需要配图（纯文字/数据驱动）
+      - B. 只在关键页面配图（封面 + 章节封面，约 3-5 张）
+      - C. 每页都配图（全页氛围感最强，生成时间较长）
+      - D. 用户提供图片素材（请提供图片路径）
+      - E. 使用 Unsplash 图库（需要配置 UNSPLASH_ACCESS_KEY）
 
 ## 输出格式
 以"内容需求单"形式一次性展示所有问题。每题格式：
@@ -522,6 +523,41 @@
 **核心原则**：图片是**氛围的一部分**，不是独立的内容块。
 
 > **SVG 管线兼容警告**：所有渐隐/遮罩效果必须用 **真实 `<div>` 遮罩层** 实现（`linear-gradient` 背景的 div 叠加在图片上方）。**禁止使用 CSS `mask-image` / `-webkit-mask-image`**，该属性在 dom-to-svg 转换中完全丢失。html2svg.py 有兜底（自动降级为 opacity），但效果远不如 div 遮罩精细。
+
+#### 图片来源配置
+
+当需要配图时，优先使用 **Unsplash** 免费图库获取高质量图片：
+
+**环境变量配置**：
+```
+UNSPLASH_ACCESS_KEY=你的_Unsplash_API_Key
+```
+
+**Unsplash API 调用方式**：
+```javascript
+// 按关键词搜索图片
+GET https://api.unsplash.com/search/photos?query={关键词}&per_page=1
+
+// 请求头
+Authorization: Client-ID {UNSPLASH_ACCESS_KEY}
+
+// 响应处理
+response.results[0].urls.regular  // 图片 URL
+response.results[0].alt_description  // 图片描述（用于 alt）
+```
+
+**使用流程**：
+1. 检查环境变量 `UNSPLASH_ACCESS_KEY`
+2. 根据页面内容上下文提取关键词（如"科技办公室"、"团队协作"、"城市夜景"）
+3. 调用 Unsplash API 搜索获取图片 URL
+4. 使用返回的 URL 作为 `<img src="...">` 的值
+
+**HTML 图片规范**：
+- 必须使用 `<img>` 标签，禁止 CSS `background-image`
+- 必须指定 `alt` 属性（从 API 返回的 `alt_description` 获取）
+- 图片尺寸建议：封面页 1920×1080，内容页根据布局设置（一般 600×400 左右）
+
+**降级方案**：如果 Unsplash API 不可用或配额用尽，回退到用户提供的素材图片。
 
 #### 5 种融入技法（全部管线安全 -- 均使用 div 遮罩而非 mask-image）
 

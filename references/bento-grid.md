@@ -202,3 +202,157 @@
 - 数字: 64-80px, 900 weight, accent 色
 - 副标题 + 补充数据行
 - **最低要求**: 1 个超大数字 + 副标题 + 补充数据行
+
+---
+
+## 6 种新增卡片类型
+
+### timeline（时间线卡片）
+- 用于展示时间序列、发展历程、项目里程碑
+- 结构: 垂直时间轴线 + 圆点节点 + 内容卡片
+- 时间轴线: 2px 宽, accent 渐变色
+- 节点: 22px 圆形, accent 色 + 发光效果
+- 内容卡片: 日期标签 + 标题 + 描述文字
+- **HTML 结构**:
+  ```html
+  <div class="card-timeline">
+    <div class="timeline-line"></div>
+    <div class="timeline-item">
+      <div class="timeline-node"></div>
+      <div class="timeline-content">
+        <span class="timeline-date">2024.Q1</span>
+        <h4>阶段标题</h4>
+        <p>阶段描述文字</p>
+      </div>
+    </div>
+    <!-- 更多 timeline-item -->
+  </div>
+  ```
+- **CSS 要点**: timeline-line 是真实 div, 不是 border; timeline-node 是真实 div, 不是 ::before
+- **最低要求**: 至少 3 个时间节点
+
+### comparison（对比卡片）
+- 用于方案对比、产品比较、商业模式对比
+- 结构: 左右 50/50 分栏 + 中间 VS 标记
+- 每侧: 标签 + 图片 + 标题 + 列表
+- **HTML 结构**:
+  ```html
+  <div class="card-comparison">
+    <div class="comparison-left">
+      <span class="comparison-label">方案 A</span>
+      <img src="..." alt="方案A图片">
+      <h3>方案名称</h3>
+      <ul>
+        <li>优点1</li>
+        <li>缺点1</li>
+      </ul>
+    </div>
+    <div class="comparison-vs">VS</div>
+    <div class="comparison-right">
+      <span class="comparison-label">方案 B</span>
+      <img src="..." alt="方案B图片">
+      <h3>方案名称</h3>
+      <ul>
+        <li>优点1</li>
+        <li>优点2</li>
+      </ul>
+    </div>
+  </div>
+  ```
+- **图片要求**: 使用 `<img>` 标签, 高度建议 160px, object-fit: cover
+- **最低要求**: 左右各至少 3 条对比项
+
+### quote（引用卡片）
+- 用于名人名言、客户证言、产品语录
+- 结构: 大号引号装饰 + 语录正文 + 作者信息
+- 引号: 120px Georgia 字体, 低透明度 accent 色
+- 语录: 24px, line-height 1.8
+- 作者区: 圆形头像 + 姓名 + 职位
+- **HTML 结构**:
+  ```html
+  <div class="card-quote">
+    <div class="quote-mark">"</div>
+    <blockquote>语录内容...</blockquote>
+    <div class="quote-author">
+      <img src="头像URL" alt="头像">
+      <div>
+        <span class="author-name">姓名</span>
+        <span class="author-title">职位/头衔</span>
+      </div>
+    </div>
+  </div>
+  ```
+- **头像**: 56px 圆形, 边框使用 accent 色
+- **最低要求**: 语录 + 作者姓名
+
+### stat_block（统计块卡片）
+- 用于核心数据展示、业绩汇报、产品参数
+- 结构: 4 宫格布局, 每格顶部有色条
+- **重要**: 顶部色条必须使用真实元素, 禁止 ::before
+- **HTML 结构**:
+  ```html
+  <div class="card-stat-block">
+    <div class="stat-item">
+      <div class="stat-top-bar"></div>  <!-- 真实元素, 不是 ::before -->
+      <span class="stat-number">99.9%</span>
+      <span class="stat-label">数据标签</span>
+    </div>
+    <div class="stat-item">
+      <div class="stat-top-bar accent-2"></div>
+      <span class="stat-number">50ms</span>
+      <span class="stat-label">数据标签</span>
+    </div>
+    <!-- 更多 stat-item -->
+  </div>
+  ```
+- **CSS 要点**: `.stat-top-bar` 是真实 div, position:absolute; top:0; height:3px
+- **最低要求**: 4 个数据项, 每项有数字 + 标签
+
+### feature_grid（特性网格卡片）
+- 用于产品功能介绍、服务特性展示
+- 结构: 2×2 网格布局
+- 每格: emoji 图标 + 标题 + 描述
+- **HTML 结构**:
+  ```html
+  <div class="card-feature-grid">
+    <div class="feature-item">
+      <div class="feature-icon">🚀</div>
+      <h4>特性标题</h4>
+      <p>特性描述</p>
+    </div>
+    <div class="feature-item">
+      <div class="feature-icon">🔒</div>
+      <h4>特性标题</h4>
+      <p>特性描述</p>
+    </div>
+    <!-- 更多 feature-item -->
+  </div>
+  ```
+- **图标**: 使用 emoji, 40px 字号
+- **交互**: 可选 hover 上浮效果
+- **最低要求**: 4 个特性
+
+### image_text（图文叠加卡片）
+- 用于场景展示、案例介绍、产品说明
+- 结构: 50/50 左右分栏, 一侧图片一侧文字
+- 支持: 左图右文 / 左文右图 两种布局
+- 图片区: 渐变遮罩叠加效果
+- 文字区: 标签 + 标题 + 正文
+- **HTML 结构**:
+  ```html
+  <!-- layout-right: 图片在右; layout-left: 图片在左 -->
+  <div class="card-image-text layout-right">
+    <div class="image-area">
+      <img src="图片URL" alt="描述">
+      <div class="image-overlay"></div>
+    </div>
+    <div class="text-area">
+      <span class="tag">标签文字</span>
+      <h3>标题</h3>
+      <p>正文内容...</p>
+    </div>
+  </div>
+  ```
+- **图片**: 使用 `<img>` 标签, object-fit: cover
+- **遮罩**: 使用 `<div class="image-overlay">`, linear-gradient 背景
+- **最低要求**: 图片 + 标题 + 至少 2 段正文
