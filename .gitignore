@@ -6,3 +6,4 @@ package.json
 # 运行时产物（png/ 保留用于 README 效果展示）
 ppt-output/*
 !ppt-output/png/
+/.idea/
