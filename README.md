@@ -58,7 +58,7 @@ The project includes 16 professional design styles:
 | `retro_film` | Retro Film | Photography / Wedding / Homestay |
 | `corporate_blue` | Corporate Blue | Consulting / Investment / Government |
 
-![img1](ppt-output/png/card_demo-cards.png)
+![img1](ppt-output/png/card-demo-cards.png)
 
 ![img2](ppt-output/png/card-demo-cards2.png)
 

@@ -58,7 +58,7 @@
 | `retro_film` | 复古胶片 | 摄影/婚礼/民宿 |
 | `corporate_blue` | 稳重蓝 | 咨询/投行/政府 |
 
-![img1](ppt-output/png/card_demo-cards.png)
+![img1](ppt-output/png/card-demo-cards.png)
 
 ![img2](ppt-output/png/card-demo-cards2.png)
 
