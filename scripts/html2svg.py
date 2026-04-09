@@ -455,8 +455,11 @@ def ensure_deps(work_dir: Path) -> tuple:
     )
     if r.returncode != 0:
         print("Installing puppeteer...")
-        subprocess.run(["npm", "install", "puppeteer"],
-                       capture_output=True, text=True, timeout=180, cwd=str(work_dir))
+        subprocess.run(
+            ["npm", "install", "puppeteer"],
+            capture_output=True, text=True, timeout=180, cwd=str(work_dir),
+            env={**os.environ, "PUPPETEER_DOWNLOAD_HOST": "https://storage.googleapis.com.cnpmjs.org"}
+        )
 
     # dom-to-svg
     r = subprocess.run(
