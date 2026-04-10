@@ -6,9 +6,8 @@
 - dom-to-svg 直接将 DOM 树转为 SVG，保留 <text> 元素
 - 不经过 PDF 中转，文字不会变成 path
 
-降级方案：Puppeteer PDF + pdf2svg（文字变 path，不可编辑）
-
-首次运行自动安装依赖（dom-to-svg, puppeteer, esbuild）。
+优先使用完整 puppeteer（含捆绑 Chrome）；
+若 Chrome 下载失败（中国大陆常见），自动降级到 puppeteer-core + 系统 Chrome（/usr/bin/google-chrome）。
 
 用法：
     python3 html2svg.py <html_dir_or_file> [-o output_dir]
@@ -21,19 +20,30 @@ import subprocess
 import sys
 from pathlib import Path
 
+# 系统 Chrome 路径（puppeteer-core 备用）
+SYSTEM_CHROME_PATH = '/usr/bin/google-chrome'
+
 # Puppeteer + dom-to-svg bundle 注入脚本
+# 注意：puppeteerModule 和 chromePath 会通过 config 传入
 CONVERT_SCRIPT = r"""
-const puppeteer = require('puppeteer');
+const puppeteer = require(process.env.PUPPETEER_MODULE || 'puppeteer-core');
 const fs = require('fs');
 const path = require('path');
 
 (async () => {
     const config = JSON.parse(process.argv[2]);
-    const browser = await puppeteer.launch({
-        headless: 'new',
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu',
+    const chromePath = config.chromePath || null;
+
+    const launchOptions = {
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
                '--font-render-hinting=none']
-    });
+    };
+    if (chromePath) {
+        launchOptions.executablePath = chromePath;
+    }
+
+    const browser = await puppeteer.launch(launchOptions);
 
     for (const item of config.files) {
         const page = await browser.newPage();
@@ -375,6 +385,8 @@ const path = require('path');
         await new Promise(r => setTimeout(r, 300));
 
         // === 执行 DOM -> SVG 转换 ===
+        // 注意：inlineResources() 是 in-place 修改，返回 undefined
+        // 正确用法：先 documentToSVG(document) 获得 svgDoc，再用 svgDoc.documentElement
         let svgString = await page.evaluate(async () => {
             const { documentToSVG, inlineResources } = window.__domToSvg;
             const svgDoc = documentToSVG(document);
@@ -403,65 +415,70 @@ const path = require('path');
 })();
 """
 
-# 降级 PDF 方案脚本
-FALLBACK_SCRIPT = r"""
-const puppeteer = require('puppeteer');
-const fs = require('fs');
-const path = require('path');
-
-(async () => {
-    const config = JSON.parse(process.argv[2]);
-    const browser = await puppeteer.launch({
-        headless: 'new',
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
-    });
-
-    for (const item of config.files) {
-        const page = await browser.newPage();
-        await page.setViewport({ width: 1280, height: 720 });
-        await page.goto('file://' + item.html, {
-            waitUntil: 'networkidle0',
-            timeout: 30000
-        });
-        await new Promise(r => setTimeout(r, 500));
-        await page.pdf({
-            path: item.pdf,
-            width: '1280px',
-            height: '720px',
-            printBackground: true,
-            preferCSSPageSize: true
-        });
-        console.log('PDF: ' + path.basename(item.html));
-        await page.close();
-    }
-    await browser.close();
-    console.log('Done: ' + config.files.length + ' PDFs');
+# esbuild 打包入口 -- 用 IIFE 包装确保 window.__domToSvg 正确暴露
+BUNDLE_ENTRY = """
+(function() {
+  var _d2s = require('dom-to-svg');
+  window.__domToSvg = {
+    documentToSVG: _d2s.documentToSVG,
+    elementToSVG: _d2s.elementToSVG,
+    inlineResources: _d2s.inlineResources
+  };
 })();
 """
 
-# esbuild 打包入口
-BUNDLE_ENTRY = """
-import { documentToSVG, elementToSVG, inlineResources } from 'dom-to-svg';
-window.__domToSvg = { documentToSVG, elementToSVG, inlineResources };
-"""
+
+def check_puppeteer(puppeteer_module: str) -> tuple:
+    """检查指定的 puppeteer 模块是否可用，返回 (可用, chrome路径或None)"""
+    r = subprocess.run(
+        ["node", "-e", f"require('{puppeteer_module}')"],
+        capture_output=True, text=True, timeout=10
+    )
+    if r.returncode == 0:
+        return (True, None)  # puppeteer 自带 Chrome，不需要额外路径
+    return (False, None)
 
 
 def ensure_deps(work_dir: Path) -> tuple:
-    """安装依赖，返回 (方案名, bundle路径)"""
-    # puppeteer
+    """安装依赖，返回 (puppeteer模块, chrome路径, bundle路径)"""
+    # 优先检查完整 puppeteer（自带 Chrome）
+    print("Checking puppeteer (full bundle with Chrome)...")
     r = subprocess.run(
         ["node", "-e", "require('puppeteer')"],
         capture_output=True, text=True, timeout=10, cwd=str(work_dir)
     )
-    if r.returncode != 0:
-        print("Installing puppeteer...")
-        subprocess.run(
-            ["npm", "install", "puppeteer"],
-            capture_output=True, text=True, timeout=180, cwd=str(work_dir),
-            env={**os.environ, "PUPPETEER_DOWNLOAD_HOST": "https://storage.googleapis.com.cnpmjs.org"}
+    if r.returncode == 0:
+        print("  -> puppeteer available (bundled Chrome)")
+        puppeteer_module = 'puppeteer'
+        chrome_path = None
+    else:
+        print("  -> puppeteer not available, trying puppeteer-core...")
+
+        # 检查 puppeteer-core + 系统 Chrome
+        r = subprocess.run(
+            ["node", "-e", "require('puppeteer-core')"],
+            capture_output=True, text=True, timeout=10, cwd=str(work_dir)
         )
+        if r.returncode != 0:
+            # 安装 puppeteer-core
+            print("  -> Installing puppeteer-core...")
+            subprocess.run(
+                ["npm", "install", "puppeteer-core"],
+                capture_output=True, text=True, timeout=60, cwd=str(work_dir)
+            )
+
+        # 检查系统 Chrome
+        chrome_path = None
+        if Path(SYSTEM_CHROME_PATH).exists():
+            chrome_path = SYSTEM_CHROME_PATH
+            print(f"  -> Using system Chrome: {chrome_path}")
+        else:
+            print(f"WARNING: System Chrome not found at {SYSTEM_CHROME_PATH}", file=sys.stderr)
+
+        puppeteer_module = 'puppeteer-core'
 
     # dom-to-svg
+    print("Checking dom-to-svg...")
     r = subprocess.run(
         ["node", "-e", "require('dom-to-svg')"],
         capture_output=True, text=True, timeout=10, cwd=str(work_dir)
@@ -476,8 +493,12 @@ def ensure_deps(work_dir: Path) -> tuple:
         )
 
     if r.returncode != 0:
-        print("dom-to-svg unavailable, using pdf2svg fallback", file=sys.stderr)
-        return ("pdf2svg", None)
+        print("ERROR: dom-to-svg is not available on this system.", file=sys.stderr)
+        print("SVG conversion requires Node.js + dom-to-svg.", file=sys.stderr)
+        print("Options:", file=sys.stderr)
+        print("  1. Install: npm install -g dom-to-svg", file=sys.stderr)
+        print("  2. Use PNG version instead (presentation-png.pptx)", file=sys.stderr)
+        return (None, None, None)
 
     # 打包 dom-to-svg 为浏览器 bundle
     bundle_path = work_dir / "dom-to-svg.bundle.js"
@@ -496,20 +517,25 @@ def ensure_deps(work_dir: Path) -> tuple:
             entry_path.unlink()
         if r.returncode != 0:
             print(f"esbuild failed: {r.stderr}", file=sys.stderr)
-            return ("pdf2svg", None)
+            return (None, None, None)
 
-    return ("dom-to-svg", str(bundle_path))
+    return (puppeteer_module, chrome_path, str(bundle_path))
 
 
-def convert_dom_to_svg(html_files, output_dir, work_dir, bundle_path):
+def convert_dom_to_svg(html_files, output_dir, work_dir, puppeteer_module, chrome_path, bundle_path):
     """用 dom-to-svg 方案转换"""
     config = {
+        "puppeteerModule": puppeteer_module,
+        "chromePath": chrome_path,
         "bundlePath": bundle_path,
         "files": [
             {"html": str(f), "svg": str(output_dir / (f.stem + ".svg"))}
             for f in html_files
         ]
     }
+
+    # 通过环境变量传递 puppeteer 模块名
+    env = {**os.environ, "PUPPETEER_MODULE": puppeteer_module}
 
     script_path = work_dir / ".dom2svg_tmp.js"
     script_path.write_text(CONVERT_SCRIPT)
@@ -518,7 +544,7 @@ def convert_dom_to_svg(html_files, output_dir, work_dir, bundle_path):
         print(f"Converting {len(html_files)} HTML files (dom-to-svg, text editable)...")
         r = subprocess.run(
             ["node", str(script_path), json.dumps(config)],
-            cwd=str(work_dir), timeout=300
+            cwd=str(work_dir), timeout=300, env=env
         )
         if r.returncode != 0:
             return False
@@ -533,54 +559,6 @@ def convert_dom_to_svg(html_files, output_dir, work_dir, bundle_path):
     finally:
         if script_path.exists():
             script_path.unlink()
-
-
-def convert_pdf2svg(html_files, output_dir, work_dir):
-    """降级方案：Puppeteer PDF + pdf2svg"""
-    if not shutil.which("pdf2svg"):
-        print("pdf2svg not found. Install: sudo apt install pdf2svg", file=sys.stderr)
-        return False
-
-    pdf_tmp = work_dir / ".pdf_tmp"
-    pdf_tmp.mkdir(exist_ok=True)
-
-    config = {
-        "files": [
-            {"html": str(f), "pdf": str(pdf_tmp / (f.stem + ".pdf"))}
-            for f in html_files
-        ]
-    }
-
-    script_path = work_dir / ".fallback_tmp.js"
-    script_path.write_text(FALLBACK_SCRIPT)
-
-    try:
-        print(f"Step 1/2: HTML -> PDF ({len(html_files)} files)...")
-        r = subprocess.run(
-            ["node", str(script_path), json.dumps(config)],
-            cwd=str(work_dir), timeout=300
-        )
-        if r.returncode != 0:
-            return False
-
-        print("Step 2/2: PDF -> SVG (WARNING: text becomes paths, NOT editable)...")
-        success = 0
-        for item in config["files"]:
-            svg_name = Path(item["pdf"]).stem + ".svg"
-            svg_path = output_dir / svg_name
-            r = subprocess.run(
-                ["pdf2svg", item["pdf"], str(svg_path)],
-                capture_output=True, text=True, timeout=30
-            )
-            if r.returncode == 0:
-                print(f"  OK {svg_name}")
-                success += 1
-        return success > 0
-    finally:
-        if script_path.exists():
-            script_path.unlink()
-        if pdf_tmp.exists():
-            shutil.rmtree(pdf_tmp)
 
 
 def convert(html_dir: Path, output_dir: Path) -> bool:
@@ -598,16 +576,16 @@ def convert(html_dir: Path, output_dir: Path) -> bool:
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    method, bundle_path = ensure_deps(work_dir)
+    puppeteer_module, chrome_path, bundle_path = ensure_deps(work_dir)
 
-    if method == "dom-to-svg" and bundle_path:
-        ok = convert_dom_to_svg(html_files, output_dir, work_dir, bundle_path)
-        if ok:
-            print(f"\nDone! {len(html_files)} SVGs -> {output_dir}")
-            return True
-        print("dom-to-svg failed, falling back to pdf2svg...")
+    if puppeteer_module is None:
+        # dom-to-svg 不可用，直接失败，不做降级
+        return False
 
-    return convert_pdf2svg(html_files, output_dir, work_dir)
+    ok = convert_dom_to_svg(html_files, output_dir, work_dir, puppeteer_module, chrome_path, bundle_path)
+    if ok:
+        print(f"\nDone! {len(html_files)} SVGs -> {output_dir}")
+    return ok
 
 
 def main():

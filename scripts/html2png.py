@@ -2,7 +2,8 @@
 """HTML to PNG -- 将 HTML 文件截图生成 PNG 图片
 
 使用 Puppeteer 对每个 HTML 文件进行截图，支持多页并行。
-主要用于 Visual QA 和 PNG → PPTX 管线。
+优先使用完整 puppeteer（含捆绑 Chrome）；
+若失败则自动降级到 puppeteer-core + 系统 Chrome（/usr/bin/google-chrome）。
 
 用法:
   python html2png.py <slides_dir> -o <output_dir>
@@ -20,26 +21,87 @@ from pathlib import Path
 # -------------------------------------------------------------------
 SLIDE_WIDTH = 1280
 SLIDE_HEIGHT = 720
-PUPPETEER_HOST = os.environ.get("PUPPETEER_DOWNLOAD_HOST", "")
+SYSTEM_CHROME_PATH = '/usr/bin/google-chrome'
+
+
+# -------------------------------------------------------------------
+# Puppeteer 初始化（优先 puppeteer，降级 puppeteer-core）
+# -------------------------------------------------------------------
+_puppeteer_cache = None
+_chrome_path_cache = None
+
+def get_puppeteer():
+    """优先使用 puppeteer，降级到 puppeteer-core + 系统 Chrome"""
+    global _puppeteer_cache, _chrome_path_cache
+    
+    if _puppeteer_cache is not None:
+        return _puppeteer_cache
+    
+    # 优先尝试 puppeteer（自带 Chrome）
+    try:
+        import puppeteer
+        print("Using puppeteer (bundled Chrome)")
+        _puppeteer_cache = puppeteer
+        _chrome_path_cache = None
+        return puppeteer
+    except ImportError:
+        pass
+
+    # 降级到 puppeteer-core
+    try:
+        import puppeteer_core as puppeteer
+    except ImportError:
+        try:
+            import puppeteer_core as puppeteer
+        except ImportError:
+            # 安装 puppeteer-core
+            print("Installing puppeteer-core...")
+            import subprocess
+            subprocess.run(
+                ["npm", "install", "puppeteer-core"],
+                capture_output=True, text=True, timeout=60
+            )
+            try:
+                import puppeteer_core as puppeteer
+            except ImportError:
+                print("ERROR: Neither puppeteer nor puppeteer-core installed.", file=sys.stderr)
+                print("Run: npm install -g puppeteer puppeteer-core", file=sys.stderr)
+                _puppeteer_cache = False
+                return None
+
+    # 检查系统 Chrome
+    if Path(SYSTEM_CHROME_PATH).exists():
+        _chrome_path_cache = SYSTEM_CHROME_PATH
+        print(f"Using puppeteer-core with system Chrome: {_chrome_path_cache}")
+    else:
+        print(f"WARNING: System Chrome not found at {SYSTEM_CHROME_PATH}", file=sys.stderr)
+        _chrome_path_cache = None
+
+    _puppeteer_cache = puppeteer
+    return puppeteer
 
 
 # -------------------------------------------------------------------
 # Puppeteer 截图核心
 # -------------------------------------------------------------------
-async def screenshot_html(html_path: Path, output_path: Path, page_number: int = 0) -> bool:
+async def screenshot_html(html_path: Path, output_path: Path, page_number: int = 0, chrome_path: str = None) -> bool:
     """对单个 HTML 文件截图。"""
-    try:
-        import puppeteer
-    except ImportError:
-        print("ERROR: puppeteer not installed. Run: npm install puppeteer", file=sys.stderr)
+    puppeteer = get_puppeteer()
+    if not puppeteer:
         return False
 
     browser = None
     try:
-        browser = await puppeteer.launch({
+        launch_opts = {
             "headless": True,
-            "args": ["--no-sandbox", "--disable-setuid-sandbox"]
-        })
+            "args": ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+        }
+        if chrome_path:
+            launch_opts["executablePath"] = chrome_path
+        elif hasattr(puppeteer, '_chrome_path') and puppeteer._chrome_path:
+            launch_opts["executablePath"] = puppeteer._chrome_path
+
+        browser = await puppeteer.launch(**launch_opts)
         page = await browser.newPage()
         await page.setViewport({"width": SLIDE_WIDTH, "height": SLIDE_HEIGHT, "deviceScaleFactor": 2})
 
@@ -84,13 +146,19 @@ async def batch_screenshot(slides_dir: Path, output_dir: Path, concurrency: int 
 
     print(f"Found {len(html_files)} HTML files, processing with concurrency={concurrency}...")
 
+    # 获取 chrome 路径
+    puppeteer = get_puppeteer()
+    chrome_path = None
+    if _chrome_path_cache:
+        chrome_path = _chrome_path_cache
+
     # 创建信号量控制并发
     semaphore = asyncio.Semaphore(concurrency)
 
     async def process_file(html_file: Path, idx: int) -> bool:
         output_file = output_dir / f"slide-{idx:02d}.png"
         async with semaphore:
-            return await screenshot_html(html_file, output_file, idx)
+            return await screenshot_html(html_file, output_file, idx, chrome_path)
 
     tasks = [process_file(f, i) for i, f in enumerate(html_files, 1)]
     results = await asyncio.gather(*tasks)

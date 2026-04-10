@@ -31,6 +31,12 @@ npm install -g dom-to-svg esbuild
 
 **Verification**: `node -e "require('puppeteer'); console.log('puppeteer OK')"`
 
+If full puppeteer fails to install (Chrome download blocked in China mainland), scripts will automatically fall back to `puppeteer-core` with system Chrome at `/usr/bin/google-chrome`. You can also install it directly:
+
+```bash
+npm install -g puppeteer-core
+````
+
 ### Python Environment
 
 ```bash
@@ -341,6 +347,8 @@ Match one of 8 preset styles based on topic keywords (dark tech / xiaomi orange 
 
 Before generating each page's HTML, generate that page's illustration first. At least 1 per page (cover page, section cover must have), save to `OUTPUT_DIR/images/`.
 
+**⚠️ Image Path Rule -- MUST FOLLOW**: All images must be downloaded to `OUTPUT_DIR/images/` **before** generating HTML. Use `<img src="images/xxx.png">` with relative paths in HTML. **Never** reference external URLs (Unsplash etc.) directly in HTML -- they cannot load under `file://` protocol.
+
 **Degradation Chain** (automatic degradation, no need to ask user again):
 
 ```
@@ -504,7 +512,7 @@ npm install puppeteer dom-to-svg 2>/dev/null
    ```
 
    Uses dom-to-svg underneath (auto-installs), esbuild bundles on first run.
-   **Degradation**: If Node.js unavailable or dom-to-svg installation fails, skip SVG branch entirely.
+   **Degradation**: If dom-to-svg installation fails, SVG branch will abort and notify user. PNG branch continues independently.
 
 3. **SVG PPTX Export** -- Run `svg2pptx.py` (OOXML native SVG embedding, PPT 365 editable)
    ```bash

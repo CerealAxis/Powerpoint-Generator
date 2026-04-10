@@ -16,7 +16,7 @@ from pathlib import Path
 
 from pptx import Presentation
 from pptx.util import Emu, Pt
-from pptx.dml.color import RgbColor
+from pptx.dml.color import RGBColor as RgbColor
 from pptx.enum.text import PP_ALIGN
 
 
