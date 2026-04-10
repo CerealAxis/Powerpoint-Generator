@@ -31,7 +31,7 @@ def render_template(template: str, variables: dict) -> str:
         var_name = match.group(1).strip()
         content = match.group(2)
         # 支持 {% if VAR %} 和 {% if not VAR %}
-       negate = False
+        negate = False
         if var_name.startswith("not "):
             negate = True
             var_name = var_name[4:].strip()

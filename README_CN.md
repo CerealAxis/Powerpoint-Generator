@@ -106,7 +106,6 @@ Powerpoint-Generator/
 │   ├── prompts.md        # 5 套 Prompt 模板
 │   ├── style-system.md   # 16 种风格 + CSS 变量
 │   ├── bento-grid.md     # 7 种布局 + 12 种卡片
-│   ├── card-demo.html    # 卡片类型可视化演示
 │   ├── method.md         # 核心方法论
 │   └── pipeline-compat.md # 管线兼容性规则
 └── scripts/

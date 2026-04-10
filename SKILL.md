@@ -185,6 +185,61 @@ def find_recovery_point(run_dir: Path) -> str:
 
 ---
 
+## Subagent Scheduling (Subagent Dispatch)
+
+> Each stage has a dedicated Subagent to avoid Context pollution. Context isolation ensures each Subagent only carries its own stage's information.
+
+### Subagent Architecture
+
+```
+Main Agent (Decision + Dispatch)
+    │
+    ├── ResearchAgent ──→ search.txt
+    │       Model: MUST pass --model parameter
+    │
+    ├── OutlineAgent ──→ outline.txt
+    │       Model: MUST pass --model parameter
+    │
+    ├── StyleAgent ──→ style.json
+    │       Model: MUST pass --model parameter
+    │
+    ├── PlanningAgent ──→ planning-N.json (per page)
+    │       Model: MUST pass --model parameter
+    │
+    ├── PageAgent-1 ──→ slide-1.html (parallel)
+    ├── PageAgent-2 ──→ slide-2.html (parallel)
+    │         ... (all pages parallel)
+    └── PageAgent-N ──→ slide-N.html (parallel)
+        Model: MUST pass --model parameter for each
+
+Main Agent ← All Subagents complete ← Step 6 Post-processing
+```
+
+### Subagent Rules
+
+| Rule | Description |
+|------|-------------|
+| **Must specify --model** | Every Subagent MUST receive explicit --model parameter, no default fallback |
+| **Context isolation** | Each Subagent only reads/writes its own stage's artifacts |
+| **Failure isolation** | Single Subagent failure does not block other Subagents |
+| **Retry on failure** | Failed Subagent retries up to 2 times before escalation to Main Agent |
+
+### Artifact Naming Convention
+
+| Artifact | Filename |
+|----------|----------|
+| Requirements | `requirements-interview.txt` |
+| Search Results | `search.txt` |
+| Outline | `outline.txt` |
+| Style Definition | `style.json` |
+| Planning Draft | `planning-N.json` (N = page number) |
+| Design Draft | `slides/slide-N.html` |
+| Screenshot | `slides/slide-N.png` |
+| SVG | `svg/slide-N.svg` |
+
+---
+
+
 ## 6-Step Pipeline
 
 ### Step 1: Requirements Interview [STOP -- Cannot Skip]
@@ -257,59 +312,6 @@ Show planning draft overview to user, recommend waiting for user confirmation be
 
 ---
 
-## Subagent Scheduling (Subagent Dispatch)
-
-> Each stage has a dedicated Subagent to avoid Context pollution. Context isolation ensures each Subagent only carries its own stage's information.
-
-### Subagent Architecture
-
-```
-Main Agent (Decision + Dispatch)
-    │
-    ├── ResearchAgent ──→ search.txt
-    │       Model: MUST pass --model parameter
-    │
-    ├── OutlineAgent ──→ outline.txt
-    │       Model: MUST pass --model parameter
-    │
-    ├── StyleAgent ──→ style.json
-    │       Model: MUST pass --model parameter
-    │
-    ├── PlanningAgent ──→ planning-N.json (per page)
-    │       Model: MUST pass --model parameter
-    │
-    ├── PageAgent-1 ──→ slide-1.html (parallel)
-    ├── PageAgent-2 ──→ slide-2.html (parallel)
-    │         ... (all pages parallel)
-    └── PageAgent-N ──→ slide-N.html (parallel)
-        Model: MUST pass --model parameter for each
-
-Main Agent ← All Subagents complete ← Step 6 Post-processing
-```
-
-### Subagent Rules
-
-| Rule | Description |
-|------|-------------|
-| **Must specify --model** | Every Subagent MUST receive explicit --model parameter, no default fallback |
-| **Context isolation** | Each Subagent only reads/writes its own stage's artifacts |
-| **Failure isolation** | Single Subagent failure does not block other Subagents |
-| **Retry on failure** | Failed Subagent retries up to 2 times before escalation to Main Agent |
-
-### Artifact Naming Convention
-
-| Artifact | Filename |
-|----------|----------|
-| Requirements | `requirements-interview.txt` |
-| Search Results | `search.txt` |
-| Outline | `outline.txt` |
-| Style Definition | `style.json` |
-| Planning Draft | `planning-N.json` (N = page number) |
-| Design Draft | `slides/slide-N.html` |
-| Screenshot | `slides/slide-N.png` |
-| SVG | `svg/slide-N.svg` |
-
----
 
 ### Step 5: Style Decision + Design Draft Generation
 

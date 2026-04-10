@@ -181,6 +181,59 @@ def find_recovery_point(run_dir: Path) -> str:
 
 ---
 
+## Subagent 调度表（Subagent Dispatch）
+> 各阶段独立 Subagent，避免 Context 互染。每个 Subagent 只携带自己阶段的信息。
+
+### Subagent 架构
+
+```
+主 Agent（决策 + 调度）
+    │
+    ├── ResearchAgent ──→ search.txt
+    │       模型：必须传 --model 参数
+    │
+    ├── OutlineAgent ──→ outline.txt
+    │       模型：必须传 --model 参数
+    │
+    ├── StyleAgent ──→ style.json
+    │       模型：必须传 --model 参数
+    │
+    ├── PlanningAgent ──→ planning-N.json（每页）
+    │       模型：必须传 --model 参数
+    │
+    ├── PageAgent-1 ──→ slide-1.html（并行）
+    ├── PageAgent-2 ──→ slide-2.html（并行）
+    │         ...（全部页面并行）
+    └── PageAgent-N ──→ slide-N.html（并行）
+        模型：每个 PageAgent 必须传 --model 参数
+主 Agent ← 所有 Subagent 完成 ← Step 6 后处理
+```
+
+### Subagent 规则
+
+| 规则 | 说明 |
+|------|------|
+| **必须指定 --model** | 每个 Subagent 必须传 --model 参数，禁止默认回退 |
+| **Context 隔离** | 每个 Subagent 只读写自己阶段的产物 |
+| **失败隔离** | 单个 Subagent 失败不影响其他 Subagent |
+| **失败重试** | 失败 Subagent 最多重试 2 次，失败超过次数则上报主 Agent |
+
+### 产物命名规范
+
+| 产物 | 文件名 |
+|------|--------|
+| 需求访谈 | `requirements-interview.txt` |
+| 资料搜集 | `search.txt` |
+| 大纲 | `outline.txt` |
+| 风格定义 | `style.json` |
+| 策划稿 | `planning-N.json`（N = 页码）|
+| 设计稿 | `slides/slide-N.html` |
+| 截图 | `slides/slide-N.png` |
+| SVG | `svg/slide-N.svg` |
+
+---
+
+
 ## 6 步 Pipeline
 
 ### Step 1: 需求调研 [STOP -- 禁止跳过]
@@ -250,57 +303,6 @@ def find_recovery_point(run_dir: Path) -> str:
 向用户展示策划稿概览，建议等用户确认后再进入 Step 5。
 
 **产物**：每页策划卡 JSON 数组 -> 保存为 `OUTPUT_DIR/planning.json`
-
----
-## Subagent 调度表（Subagent Dispatch）
-> 各阶段独立 Subagent，避免 Context 互染。每个 Subagent 只携带自己阶段的信息。
-
-### Subagent 架构
-
-```
-主 Agent（决策 + 调度）
-    │
-    ├── ResearchAgent ──→ search.txt
-    │       模型：必须传 --model 参数
-    │
-    ├── OutlineAgent ──→ outline.txt
-    │       模型：必须传 --model 参数
-    │
-    ├── StyleAgent ──→ style.json
-    │       模型：必须传 --model 参数
-    │
-    ├── PlanningAgent ──→ planning-N.json（每页）
-    │       模型：必须传 --model 参数
-    │
-    ├── PageAgent-1 ──→ slide-1.html（并行）
-    ├── PageAgent-2 ──→ slide-2.html（并行）
-    │         ...（全部页面并行）
-    └── PageAgent-N ──→ slide-N.html（并行）
-        模型：每个 PageAgent 必须传 --model 参数
-主 Agent ← 所有 Subagent 完成 ← Step 6 后处理
-```
-
-### Subagent 规则
-
-| 规则 | 说明 |
-|------|------|
-| **必须指定 --model** | 每个 Subagent 必须传 --model 参数，禁止默认回退 |
-| **Context 隔离** | 每个 Subagent 只读写自己阶段的产物 |
-| **失败隔离** | 单个 Subagent 失败不影响其他 Subagent |
-| **失败重试** | 失败 Subagent 最多重试 2 次，失败超过次数则上报主 Agent |
-
-### 产物命名规范
-
-| 产物 | 文件名 |
-|------|--------|
-| 需求访谈 | `requirements-interview.txt` |
-| 资料搜集 | `search.txt` |
-| 大纲 | `outline.txt` |
-| 风格定义 | `style.json` |
-| 策划稿 | `planning-N.json`（N = 页码）|
-| 设计稿 | `slides/slide-N.html` |
-| 截图 | `slides/slide-N.png` |
-| SVG | `svg/slide-N.svg` |
 
 ---
 

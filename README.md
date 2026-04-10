@@ -106,7 +106,6 @@ Powerpoint-Generator/
 │   ├── prompts.md        # 5 Prompt templates
 │   ├── style-system.md   # 16 styles + CSS variables
 │   ├── bento-grid.md     # 7 layouts + 12 card types
-│   ├── card-demo.html    # Card types visual demo
 │   ├── method.md         # Core methodology
 │   └── pipeline-compat.md # Pipeline compatibility rules
 └── scripts/

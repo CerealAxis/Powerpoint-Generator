@@ -7,3 +7,4 @@ package.json
 ppt-output/*
 !ppt-output/png/
 /.idea/
+__pycache__/
