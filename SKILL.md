@@ -347,12 +347,16 @@ Prompt #4 template
 > **Cannot skip, must execute.** After HTML generation, must immediately execute the following pipeline steps.
 
 ```
-slides/*.html --> preview.html --> svg/*.svg --> presentation.pptx
+slides/*.html
+  ├── html_packager.py --> preview.html
+  ├── html2svg.py --> svg/*.svg --> svg2pptx.py --> presentation-svg.pptx
+  └── html2png.py --> png/*.png --> png2pptx.py --> presentation-png.pptx
 ```
 
 **Dependency check** (auto-execute on first run):
 ```bash
 pip install python-pptx lxml Pillow 2>/dev/null
+npm install puppeteer dom-to-svg 2>/dev/null
 ```
 
 **Execute in order**:
@@ -369,22 +373,40 @@ pip install python-pptx lxml Pillow 2>/dev/null
    ```
 
    Uses dom-to-svg underneath (auto-installs), esbuild bundles on first run.
-   **Degradation**: If Node.js unavailable or dom-to-svg installation fails, skip this step and Step 3, output preview.html only.
+   **Degradation**: If Node.js unavailable or dom-to-svg installation fails, skip SVG branch entirely.
 
-3. **PPTX Generation** -- Run `svg2pptx.py` (OOXML native SVG embedding, PPT 365 editable)
+3. **SVG PPTX Export** -- Run `svg2pptx.py` (OOXML native SVG embedding, PPT 365 editable)
    ```bash
-   python3 SKILL_DIR/scripts/svg2pptx.py OUTPUT_DIR/svg/ -o OUTPUT_DIR/presentation.pptx --html-dir OUTPUT_DIR/slides/
+   python3 SKILL_DIR/scripts/svg2pptx.py OUTPUT_DIR/svg/ -o OUTPUT_DIR/presentation-svg.pptx --html-dir OUTPUT_DIR/slides/
    ```
 
    In PPT 365, right-click image -> "Convert to Shape" to edit text and shapes.
 
-4. **Notify User** -- Inform output location and usage:
-   - `preview.html` -- Open in browser for paginated preview
-   - `presentation.pptx` -- PPTX (right-click -> "Convert to Shape" to edit)
-   - `svg/` -- Each SVG can also be dragged individually into PPT
-   - **If Steps 2-3 were skipped due to degradation**, explain the reason and tell the user they can manually install Node.js and rerun
+4. **PNG Screenshot** -- Run `html2png.py` (Puppeteer screenshot, parallel execution)
+   ```bash
+   python3 SKILL_DIR/scripts/html2png.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/png/ --concurrency 4
+   ```
 
-**Output**: preview.html + svg/*.svg + presentation.pptx
+   Uses Puppeteer for pixel-perfect screenshots. Concurrency controls parallel screenshot threads.
+   **Degradation**: If Node.js/Puppeteer unavailable, skip PNG branch entirely.
+
+5. **PNG PPTX Export** -- Run `png2pptx.py` (PNG as background, cross-platform 100%% visual fidelity)
+   ```bash
+   python3 SKILL_DIR/scripts/png2pptx.py OUTPUT_DIR/png/ -o OUTPUT_DIR/presentation-png.pptx
+   ```
+
+   PNG fills each slide as background. Text is not editable but visuals are pixel-perfect.
+
+6. **Notify User** -- Inform output location and usage:
+   - `preview.html` -- Open in browser for paginated preview
+   - `presentation-svg.pptx` -- PPTX with editable text and shapes (SVG vectors)
+   - `presentation-png.pptx` -- PPTX with pixel-perfect visuals (PNG backgrounds, text not editable)
+   - `svg/` -- Each SVG can also be dragged individually into PPT
+   - `png/` -- PNG screenshots (for Visual QA reference)
+   - **If SVG branch was skipped**, explain reason and tell user they can install Node.js and rerun
+   - **If PNG branch was skipped**, note that PNG screenshots are used for Visual QA only
+
+**Output**: preview.html + svg/*.svg + png/*.png + presentation-svg.pptx + presentation-png.pptx
 
 ---
 
@@ -392,14 +414,16 @@ pip install python-pptx lxml Pillow 2>/dev/null
 
 ```
 ppt-output/
-  slides/              # Per-page HTML
-  svg/                 # Vector SVG (importable into PPT for editing)
-  images/              # AI illustrations
-  preview.html         # Paginated preview
-  presentation.pptx    # Editable PPTX (right-click "Convert to Shape")
-  outline.json         # Outline
-  planning.json        # Planning draft
-  style.json           # Style definition
+  slides/                  # Per-page HTML
+  svg/                     # Vector SVG (importable into PPT for editing)
+  png/                     # PNG screenshots (for Visual QA + PNG PPTX export)
+  images/                  # AI illustrations
+  preview.html             # Paginated preview
+  presentation-svg.pptx    # Editable PPTX (SVG vectors, PPT 365 "Convert to Shape")
+  presentation-png.pptx    # Pixel-perfect PPTX (PNG backgrounds, not editable)
+  outline.json             # Outline
+  planning.json            # Planning draft
+  style.json               # Style definition
 ```
 
 ---

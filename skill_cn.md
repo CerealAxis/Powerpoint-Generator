@@ -343,12 +343,16 @@ Prompt #4 模板
 > **禁止跳过，必须执行。** HTML 生成完后必须立即执行以下管线步骤。
 
 ```
-slides/*.html --> preview.html --> svg/*.svg --> presentation.pptx
+slides/*.html
+  ├── html_packager.py --> preview.html
+  ├── html2svg.py --> svg/*.svg --> svg2pptx.py --> presentation-svg.pptx
+  └── html2png.py --> png/*.png --> png2pptx.py --> presentation-png.pptx
 ```
 
 **依赖检查**（首次运行自动执行）：
 ```bash
 pip install python-pptx lxml Pillow 2>/dev/null
+npm install puppeteer dom-to-svg 2>/dev/null
 ```
 
 **依次执行**：
@@ -365,22 +369,40 @@ pip install python-pptx lxml Pillow 2>/dev/null
    ```
 
    底层用 dom-to-svg（自动安装），首次运行会 esbuild 打包。
-   **降级**：如果 Node.js 不可用或 dom-to-svg 安装失败，跳过此步和步骤 3，只输出 preview.html。
+   **降级**：如果 Node.js 不可用或 dom-to-svg 安装失败，跳过 SVG 分支。
 
-3. **PPTX 生成** -- 运行 `svg2pptx.py`（OOXML 原生 SVG 嵌入，PPT 365 可编辑）
+3. **SVG PPTX 导出** -- 运行 `svg2pptx.py`（OOXML 原生 SVG 嵌入，PPT 365 可编辑）
    ```bash
-   python3 SKILL_DIR/scripts/svg2pptx.py OUTPUT_DIR/svg/ -o OUTPUT_DIR/presentation.pptx --html-dir OUTPUT_DIR/slides/
+   python3 SKILL_DIR/scripts/svg2pptx.py OUTPUT_DIR/svg/ -o OUTPUT_DIR/presentation-svg.pptx --html-dir OUTPUT_DIR/slides/
    ```
 
    PPT 365 中右键图片 -> "转换为形状" 即可编辑文字和形状。
 
-4. **通知用户** -- 告知产物位置和使用方式：
-   - `preview.html` -- 浏览器打开即可翻页预览
-   - `presentation.pptx` -- PPTX（右键 -> "转换为形状" 可编辑）
-   - `svg/` -- 每个 SVG 也可单独拖入 PPT
-   - **如果步骤 2-3 被降级跳过**，说明原因并告知用户手动安装 Node.js 后可重新运行
+4. **PNG 截图** -- 运行 `html2png.py`（Puppeteer 截图，支持并行）
+   ```bash
+   python3 SKILL_DIR/scripts/html2png.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/png/ --concurrency 4
+   ```
 
-**产物**：preview.html + svg/*.svg + presentation.pptx
+   使用 Puppeteer 进行像素级截图，并发数控制并行线程数。
+   **降级**：如果 Node.js/Puppeteer 不可用，跳过 PNG 分支。
+
+5. **PNG PPTX 导出** -- 运行 `png2pptx.py`（PNG 作为背景，跨平台 100% 视觉还原）
+   ```bash
+   python3 SKILL_DIR/scripts/png2pptx.py OUTPUT_DIR/png/ -o OUTPUT_DIR/presentation-png.pptx
+   ```
+
+   PNG 填满每页幻灯片作为背景，文字不可编辑但视觉效果像素级还原。
+
+6. **通知用户** -- 告知产物位置和使用方式：
+   - `preview.html` -- 浏览器打开即可翻页预览
+   - `presentation-svg.pptx` -- SVG 矢量 PPTX（文字可编辑，PPT 365 "转换为形状"）
+   - `presentation-png.pptx` -- PNG 像素 PPTX（视觉效果完美，文字不可编辑）
+   - `svg/` -- 每张 SVG 也可单独拖入 PPT
+   - `png/` -- PNG 截图（用于 Visual QA 参考）
+   - **如果 SVG 分支被降级跳过**，说明原因并告知用户可手动安装 Node.js 后重新运行
+   - **如果 PNG 分支被降级跳过**，说明 PNG 截图仅用于 Visual QA
+
+**产物**：preview.html + svg/*.svg + png/*.png + presentation-svg.pptx + presentation-png.pptx
 
 ---
 
@@ -388,14 +410,16 @@ pip install python-pptx lxml Pillow 2>/dev/null
 
 ```
 ppt-output/
-  slides/              # 每页 HTML
-  svg/                 # 矢量 SVG（可导入 PPT 编辑）
-  images/              # AI 配图
-  preview.html         # 可翻页预览
-  presentation.pptx    # 可编辑 PPTX（右键"转换为形状"）
-  outline.json         # 大纲
-  planning.json        # 策划稿
-  style.json           # 风格定义
+  slides/                    # 每页 HTML
+  svg/                       # 矢量 SVG（可导入 PPT 编辑）
+  png/                       # PNG 截图（用于 Visual QA + PNG PPTX 导出）
+  images/                    # AI 配图
+  preview.html               # 可翻页预览
+  presentation-svg.pptx      # SVG 矢量 PPTX（文字可编辑）
+  presentation-png.pptx      # PNG 像素 PPTX（视觉效果完美）
+  outline.json               # 大纲
+  planning.json              # 策划稿
+  style.json                # 风格定义
 ```
 
 ---
