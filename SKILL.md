@@ -133,6 +133,56 @@ Automatically adjust process granularity based on target page count:
 
 ---
 
+## Breakpoint Recovery
+> The workflow is stateless. After interruption, the Main Agent scans existing artifacts on disk to determine the recovery point automatically.
+
+### Recovery Logic
+
+```python
+def find_recovery_point(run_dir: Path) -> str:
+    """Scan existing artifacts to determine recovery point."""
+    milestones = [
+        ("presentation-svg.pptx", "P5-SVG-DONE"),
+        ("presentation-png.pptx", "P5-PNG-DONE"),
+        ("png/slide-*.png", "P4-VisualQA-DONE"),
+        ("slides/slide-*.html", "P4-PAGE-DONE"),
+        ("style.json", "P3.5-STYLE-LOCKED"),
+        ("outline.txt", "P3-OUTLINE-DONE"),
+        ("search.txt", "P2-SEARCH-DONE"),
+        ("requirements-interview.txt", "P1-REQUIREMENTS-DONE"),
+    ]
+    for pattern, step in reversed(milestones):
+        matches = list(run_dir.glob(pattern))
+        if matches:
+            return step
+    return "P0-START"
+```
+
+### Recovery Rules
+
+| Rule | Description |
+|------|-------------|
+| **No state files** | The workflow does not rely on any progress state files |
+| **Scan disk artifacts** | Recovery point is inferred from existing files on disk |
+| **Partial completion OK** | Even one page's HTML exists = P4 is considered reached for that page |
+| **Agent decides** | The Main Agent decides which Subagents to spawn based on scan results |
+| **No rollback** | Artifacts already written are never deleted during recovery |
+
+### Artifact Existence = Milestone Reached
+
+| Artifact | Milestone |
+|---------|----------|
+| `requirements-interview.txt` | P1 Complete |
+| `search.txt` | P2 Complete |
+| `outline.txt` | P3 Complete |
+| `style.json` | P3.5 Style Locked |
+| `slides/slide-N.html` (any) | P4 Page generation in progress |
+| `png/slide-N.png` (all) | P4 Visual QA Complete |
+| `presentation-svg.pptx` | P5 SVG Export Complete |
+| `presentation-png.pptx` | P5 PNG Export Complete |
+
+---
+
 ## 6-Step Pipeline
 
 ### Step 1: Requirements Interview [STOP -- Cannot Skip]

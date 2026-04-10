@@ -129,6 +129,56 @@ Step 1 → Step 2 → Step 3 → Step 4 → Step 5 → Step 6
 
 ---
 
+## 断点恢复
+> 工作流是无状态的。中断后，主 Agent 扫描磁盘上已有产物，自动推断恢复点。
+
+### 恢复逻辑
+
+```python
+def find_recovery_point(run_dir: Path) -> str:
+    """扫描已有产物，确定恢复点。"""
+    milestones = [
+        ("presentation-svg.pptx", "P5-SVG完成"),
+        ("presentation-png.pptx", "P5-PNG完成"),
+        ("png/slide-*.png", "P4-VQA完成"),
+        ("slides/slide-*.html", "P4-页面完成"),
+        ("style.json", "P3.5-风格锁定"),
+        ("outline.txt", "P3-大纲完成"),
+        ("search.txt", "P2-资料搜集完成"),
+        ("requirements-interview.txt", "P1-需求确认完成"),
+    ]
+    for pattern, step in reversed(milestones):
+        matches = list(run_dir.glob(pattern))
+        if matches:
+            return step
+    return "P0-从头开始"
+```
+
+### 恢复规则
+
+| 规则 | 说明 |
+|------|------|
+| **无状态文件** | 工作流不依赖任何进度状态文件 |
+| **扫描磁盘产物** | 恢复点由磁盘已有文件推断 |
+| **部分完成正常** | 只要存在任意一页 HTML = 该页 P4 已完成 |
+| **Agent 决定** | 主 Agent 根据扫描结果决定调度哪些 Subagent |
+| **不回滚** | 恢复时绝不删除已写入的产物 |
+
+### 产物存在 = 里程碑达成
+
+| 产物 | 里程碑 |
+|------|--------|
+| `requirements-interview.txt` | P1 完成 |
+| `search.txt` | P2 完成 |
+| `outline.txt` | P3 完成 |
+| `style.json` | P3.5 风格锁定 |
+| `slides/slide-N.html`（任意） | P4 页面生成中 |
+| `png/slide-N.png`（全部） | P4 视觉 QA 完成 |
+| `presentation-svg.pptx` | P5 SVG 导出完成 |
+| `presentation-png.pptx` | P5 PNG 导出完成 |
+
+---
+
 ## 6 步 Pipeline
 
 ### Step 1: 需求调研 [STOP -- 禁止跳过]
