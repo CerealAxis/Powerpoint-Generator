@@ -205,6 +205,60 @@ Show planning draft overview to user, recommend waiting for user confirmation be
 
 ---
 
+## Subagent Scheduling (Subagent Dispatch)
+
+> Each stage has a dedicated Subagent to avoid Context pollution. Context isolation ensures each Subagent only carries its own stage's information.
+
+### Subagent Architecture
+
+```
+Main Agent (Decision + Dispatch)
+    │
+    ├── ResearchAgent ──→ search.txt
+    │       Model: MUST pass --model parameter
+    │
+    ├── OutlineAgent ──→ outline.txt
+    │       Model: MUST pass --model parameter
+    │
+    ├── StyleAgent ──→ style.json
+    │       Model: MUST pass --model parameter
+    │
+    ├── PlanningAgent ──→ planning-N.json (per page)
+    │       Model: MUST pass --model parameter
+    │
+    ├── PageAgent-1 ──→ slide-1.html (parallel)
+    ├── PageAgent-2 ──→ slide-2.html (parallel)
+    │         ... (all pages parallel)
+    └── PageAgent-N ──→ slide-N.html (parallel)
+        Model: MUST pass --model parameter for each
+
+Main Agent ← All Subagents complete ← Step 6 Post-processing
+```
+
+### Subagent Rules
+
+| Rule | Description |
+|------|-------------|
+| **Must specify --model** | Every Subagent MUST receive explicit --model parameter, no default fallback |
+| **Context isolation** | Each Subagent only reads/writes its own stage's artifacts |
+| **Failure isolation** | Single Subagent failure does not block other Subagents |
+| **Retry on failure** | Failed Subagent retries up to 2 times before escalation to Main Agent |
+
+### Artifact Naming Convention
+
+| Artifact | Filename |
+|----------|----------|
+| Requirements | `requirements-interview.txt` |
+| Search Results | `search.txt` |
+| Outline | `outline.txt` |
+| Style Definition | `style.json` |
+| Planning Draft | `planning-N.json` (N = page number) |
+| Design Draft | `slides/slide-N.html` |
+| Screenshot | `slides/slide-N.png` |
+| SVG | `svg/slide-N.svg` |
+
+---
+
 ### Step 5: Style Decision + Design Draft Generation
 
 Split into three sub-steps, **order cannot be reversed**:
@@ -305,11 +359,36 @@ Prompt must satisfy **4 dimensions** simultaneously, assembled by formula:
 
 **Output**: Illustration files under `OUTPUT_DIR/images/`
 
-#### 5c. Per-Page HTML Design Draft Generation
-
-**Execute**: Use `references/prompts.md` Prompt #4 + `references/bento-grid.md`
+#### 5c. PageAgent Parallel Generation
 
 > **Cannot skip planning draft and directly generate.** Each page must first have Step 4's structure JSON.
+
+**Parallel Scheduling**: All pages are generated in parallel via PageAgent-N subagents. Each PageAgent is responsible for one page only.
+
+**Parallel Strategy**:
+
+| Scale | Pages | Strategy |
+|-------|-------|----------|
+| **Small** | <= 5 pages | All pages parallel |
+| **Standard** | 6-18 pages | All pages parallel (independent) |
+| **Large** | > 18 pages | By Part parallel, pages within Part parallel |
+
+**PageAgent Workflow**:
+```
+PageAgent-N
+    │
+    ├── 1. Read planning-N.json
+    ├── 2. Read style.json
+    ├── 3. Read images/planning-N.png (if exists)
+    ├── 4. Generate slide-N.html
+    ├── 5. DOM self-check (overflow / pseudo-elements / hardcoded colors)
+    └── 6. Output: --- PAGE N COMPLETE ---
+```
+
+**Failure Handling**:
+- Single page failure does not affect other pages
+- Failed page enters PagePatchAgent retry queue (max 2 retries)
+- Main Agent waits for all PageAgents to complete before proceeding to Step 6
 
 **Per-Page Prompt Assembly Formula**:
 ```
@@ -327,16 +406,14 @@ Prompt #4 template
 - Prohibited: `::before`/`::after` pseudo-elements for visual decoration, `conic-gradient`, CSS border triangles
 - Illustration integration: fade blend / tinted overlay / ambient background / crop viewport / circular crop (techniques in Prompt #4)
 
-**Batch Strategy**: Generate by Part unit, 3-5 pages per batch. After each batch completes, write HTML to `OUTPUT_DIR/slides/` directory, then start next batch. Avoid context explosion while ensuring style consistency within the same Part.
-
-**Cross-Page Visual Narrative** (give PPT rhythm, not just a stack of independent pages):
+**Cross-Page Visual Narrative**:
 
 | Strategy | Rule | Reason |
 |----------|------|--------|
-| **Density alternation** | High-density pages (mixed grid/hero) followed by low-density pages (section cover/single focus), creating a tension-and-relief rhythm | 3+ consecutive high-density content pages will cause audience visual fatigue |
-| **Chapter color progression** | Part 1 cards mainly accent-1, Part 2 accent-2, Part 3 accent-3... each chapter changes one accent main color | Colors make audience unconsciously perceive chapter transitions |
-| **Cover-ending echo** | End page's visual elements echo the cover page (same decorative pattern, symmetric layout), giving a complete closed-loop feel | Cover-ending echo is the most basic narrative aesthetics |
-| **Progressive revelation** | When the same concept spans multiple pages, visual complexity should progressively increase (page 1 simple color blocks -> page 2 add data -> page 3 complete chart) | Guide audience to progressively deeper understanding |
+| **Density alternation** | High-density pages followed by low-density pages | Avoid visual fatigue |
+| **Chapter color progression** | Each Part uses a different accent main color | Unconsciously perceive chapter transitions |
+| **Cover-ending echo** | End page echoes cover page | Complete closed-loop |
+| **Progressive revelation** | Complexity increases across pages | Guide audience to deeper understanding |
 
 **Output**: One HTML file per page -> `OUTPUT_DIR/slides/`
 

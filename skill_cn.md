@@ -200,6 +200,57 @@ Step 1 → Step 2 → Step 3 → Step 4 → Step 5 → Step 6
 **产物**：每页策划卡 JSON 数组 -> 保存为 `OUTPUT_DIR/planning.json`
 
 ---
+## Subagent 调度表（Subagent Dispatch）
+> 各阶段独立 Subagent，避免 Context 互染。每个 Subagent 只携带自己阶段的信息。
+
+### Subagent 架构
+
+```
+主 Agent（决策 + 调度）
+    │
+    ├── ResearchAgent ──→ search.txt
+    │       模型：必须传 --model 参数
+    │
+    ├── OutlineAgent ──→ outline.txt
+    │       模型：必须传 --model 参数
+    │
+    ├── StyleAgent ──→ style.json
+    │       模型：必须传 --model 参数
+    │
+    ├── PlanningAgent ──→ planning-N.json（每页）
+    │       模型：必须传 --model 参数
+    │
+    ├── PageAgent-1 ──→ slide-1.html（并行）
+    ├── PageAgent-2 ──→ slide-2.html（并行）
+    │         ...（全部页面并行）
+    └── PageAgent-N ──→ slide-N.html（并行）
+        模型：每个 PageAgent 必须传 --model 参数
+主 Agent ← 所有 Subagent 完成 ← Step 6 后处理
+```
+
+### Subagent 规则
+
+| 规则 | 说明 |
+|------|------|
+| **必须指定 --model** | 每个 Subagent 必须传 --model 参数，禁止默认回退 |
+| **Context 隔离** | 每个 Subagent 只读写自己阶段的产物 |
+| **失败隔离** | 单个 Subagent 失败不影响其他 Subagent |
+| **失败重试** | 失败 Subagent 最多重试 2 次，失败超过次数则上报主 Agent |
+
+### 产物命名规范
+
+| 产物 | 文件名 |
+|------|--------|
+| 需求访谈 | `requirements-interview.txt` |
+| 资料搜集 | `search.txt` |
+| 大纲 | `outline.txt` |
+| 风格定义 | `style.json` |
+| 策划稿 | `planning-N.json`（N = 页码）|
+| 设计稿 | `slides/slide-N.html` |
+| 截图 | `slides/slide-N.png` |
+| SVG | `svg/slide-N.svg` |
+
+---
 
 ### Step 5: 风格决策 + 设计稿生成
 
@@ -301,11 +352,36 @@ Unsplash
 
 **产物**：`OUTPUT_DIR/images/` 下的配图文件
 
-#### 5c. 逐页 HTML 设计稿生成
-
-**执行**：使用 `references/prompts.md` Prompt #4 + `references/bento-grid.md`
+#### 5c. PageAgent 并行生成
 
 > **禁止跳过策划稿直接生成。** 每页必须先有 Step 4 的结构 JSON。
+
+**并行调度**：所有页面通过 PageAgent-N 子代理并行生成，每个 PageAgent 只负责一页。
+
+**并行策略**：
+
+| 规模 | 页数 | 策略 |
+|------|------|------|
+| **小型** | <= 5 页 | 全部页面并行 |
+| **标准** | 6-18 页 | 全部页面并行（独立）|
+| **大型** | > 18 页 | 按 Part 并行，Part 内全部并行 |
+
+**PageAgent 工作流程**：
+```
+PageAgent-N
+    │
+    ├── 1. 读取 planning-N.json
+    ├── 2. 读取 style.json
+    ├── 3. 读取 images/planning-N.png（如果有）
+    ├── 4. 生成 slide-N.html
+    ├── 5. DOM 自审（溢出/伪元素/硬编码检查）
+    └── 6. 输出：--- PAGE N COMPLETE ---
+```
+
+**失败处理**：
+- 单页失败不影响其他页面
+- 失败页进入 PagePatchAgent 重试队列（最多 2 次重试）
+- 主 Agent 等待所有 PageAgent 完成后进入 Step 6
 
 **每页 Prompt 组装公式**：
 ```
@@ -323,16 +399,14 @@ Prompt #4 模板
 - 禁止 `::before`/`::after` 伪元素用于视觉装饰、禁止 `conic-gradient`、禁止 CSS border 三角形
 - 配图融入设计：渐隐融合/色调蒙版/氛围底图/裁切视窗/圆形裁切（技法详见 Prompt #4）
 
-**分批策略**：按 Part 为单位分批生成，每批 3-5 页。每批完成后将 HTML 写入 `OUTPUT_DIR/slides/` 目录，再开始下一批。避免上下文爆炸的同时保证同一 Part 内的风格一致性。
-
-**跨页视觉叙事**（让 PPT 有节奏感，不只是独立页面的堆砌）：
+**跨页视觉叙事**：
 
 | 策略 | 规则 | 原因 |
 |------|------|------|
-| **密度交替** | 高密度页（混合网格/英雄式）后面跟低密度页（章节封面/单一焦点），形成张弛有度的节奏 | 连续 3+ 页高密度内容会导致观众视觉疲劳 |
-| **章节色彩递进** | Part 1 卡片主用 accent-1，Part 2 用 accent-2，Part 3 用 accent-3 ... 每章换一种 accent 主色 | 通过颜色让受众无意识感知章节切换 |
-| **封面-结尾呼应** | 结束页的视觉元素与封面页形成呼应（相同装饰图案、对称布局），给出完整闭环感 | 首尾呼应是最基本的叙事美学 |
-| **渐进揭示** | 同一概念跨多页展开时，视觉复杂度应递增（第1页简单色块 -> 第2页加数据 -> 第3页完整图表） | 引导观众逐步深入理解 |
+| **密度交替** | 高密度页后跟低密度页 | 避免视觉疲劳 |
+| **章节色彩递进** | 每个 Part 使用不同 accent 主色 | 无意识感知章节切换 |
+| **封面-结尾呼应** | 结束页呼应封面页 | 完整闭环感 |
+| **渐进揭示** | 复杂度逐页递增 | 引导观众逐步深入 |
 
 **产物**：每页一个 HTML 文件 -> `OUTPUT_DIR/slides/`
 
