@@ -21,7 +21,27 @@ from pathlib import Path
 # -------------------------------------------------------------------
 SLIDE_WIDTH = 1280
 SLIDE_HEIGHT = 720
-SYSTEM_CHROME_PATH = '/usr/bin/google-chrome'
+
+import platform
+import os
+
+def get_chrome_path():
+    system = platform.system()
+    if system == 'Windows':
+        paths = [
+            os.path.expandvars(r'%ProgramFiles%\Google\Chrome\Application\chrome.exe'),
+            os.path.expandvars(r'%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe'),
+            os.path.expandvars(r'%LocalAppData%\Google\Chrome\Application\chrome.exe'),
+        ]
+        for p in paths:
+            if os.path.exists(p):
+                return p
+        return None
+    elif system == 'Darwin':  # macOS
+        return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+    else:  # Linux
+        return '/usr/bin/google-chrome'
+SYSTEM_CHROME_PATH = get_chrome_path()
 
 
 # -------------------------------------------------------------------

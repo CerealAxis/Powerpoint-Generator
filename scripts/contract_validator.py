@@ -24,7 +24,7 @@ from pathlib import Path
 # -------------------------------------------------------------------
 CONTRACTS = {
     "outline": {
-        "required_keys": ["title", "parts", "total_pages"],
+        "required_keys": ["ppt_outline"],
         "parts_required": True,
         "min_parts": 1,
     },
@@ -57,18 +57,36 @@ def validate_outline(data: dict) -> tuple[bool, list]:
         if key not in data:
             issues.append(f"Missing required key: {key}")
 
-    if "parts" in data:
-        parts = data["parts"]
-        if not isinstance(parts, list) or len(parts) < contract["min_parts"]:
-            issues.append(f"Parts must be a list with at least {contract['min_parts']} items")
+    outline = data.get("ppt_outline", {})
+    parts = outline.get("parts", [])
+    if not isinstance(parts, list) or len(parts) < contract["min_parts"]:
+        issues.append(f"Parts must be a list with at least {contract['min_parts']} items")
+    else:
         for i, part in enumerate(parts):
             if not isinstance(part, dict):
                 issues.append(f"Part {i} must be a dict")
                 continue
-            if "title" not in part:
-                issues.append(f"Part {i} missing 'title'")
+            if "part_title" not in part:
+                issues.append(f"Part {i} missing 'part_title'")
             if "pages" not in part:
                 issues.append(f"Part {i} missing 'pages'")
+            else:
+                pages = part["pages"]
+                if not isinstance(pages, list):
+                    issues.append(f"Part {i} 'pages' must be a list")
+                else:
+                    for j, page in enumerate(pages):
+                        if not isinstance(page, dict):
+                            issues.append(f"Part {i} page {j} must be a dict")
+                            continue
+                        if "title" not in page:
+                            issues.append(f"Part {i} page {j} missing 'title'")
+
+    cover = outline.get("cover", {})
+    if cover and not isinstance(cover, dict):
+        issues.append("'cover' must be a dict")
+    elif cover and "title" not in cover:
+        issues.append("Cover missing 'title'")
 
     return len(issues) == 0, issues
 

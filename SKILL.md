@@ -403,6 +403,14 @@ Prompt must satisfy **4 dimensions** simultaneously, assembled by formula:
 | Luxury purple | luxury, purple gold, premium, elegant, metallic |
 | Minimal gray | minimal, grayscale, clean, geometric, academic |
 | Vibrant rainbow | colorful, vibrant, energetic, playful, gradient, pop art |
+| Gradient blue | gradient blue, tech, futuristic, clean, digital, professional |
+| Warm sunset | warm orange, sunset, lifestyle, travel, food, cozy lighting |
+| Nordic white | minimal, white, clean, scandinavian, lifestyle, bright |
+| Cyber punk | neon, cyber, dark, futuristic, gaming, vibrant, holographic |
+| Elegant gold | gold, luxury, elegant, premium, metallic, champagne |
+| Ocean depth | ocean blue, deep sea, marine, aquatic, serene, gradient |
+| Retro film | vintage, film grain, retro, warm tones, nostalgic, cinematic |
+| Corporate blue | corporate, professional, blue, business, formal, trustworthy |
 
 ##### Adjustment by Page Type
 
@@ -502,13 +510,13 @@ npm install puppeteer dom-to-svg 2>/dev/null
 
 1. **Merge Preview** -- Run `html_packager.py`
    ```bash
-   python3 SKILL_DIR/scripts/html_packager.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/preview.html
+   python SKILL_DIR/scripts/html_packager.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/preview.html
    ```
 
 2. **SVG Conversion** -- Run `html2svg.py` (DOM direct to SVG, preserves editable `<text>`)
    > **Important**: HTML design drafts must comply with pipeline compatibility rules in `references/pipeline-compat.md`, otherwise element loss and position misalignment will occur after conversion.
    ```bash
-   python3 SKILL_DIR/scripts/html2svg.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/svg/
+   python SKILL_DIR/scripts/html2svg.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/svg/
    ```
 
    Uses dom-to-svg underneath (auto-installs), esbuild bundles on first run.
@@ -516,22 +524,22 @@ npm install puppeteer dom-to-svg 2>/dev/null
 
 3. **SVG PPTX Export** -- Run `svg2pptx.py` (OOXML native SVG embedding, PPT 365 editable)
    ```bash
-   python3 SKILL_DIR/scripts/svg2pptx.py OUTPUT_DIR/svg/ -o OUTPUT_DIR/presentation-svg.pptx --html-dir OUTPUT_DIR/slides/
+   python SKILL_DIR/scripts/svg2pptx.py OUTPUT_DIR/svg/ -o OUTPUT_DIR/presentation-svg.pptx --html-dir OUTPUT_DIR/slides/
    ```
 
    In PPT 365, right-click image -> "Convert to Shape" to edit text and shapes.
 
 4. **PNG Screenshot** -- Run `html2png.py` (Puppeteer screenshot, parallel execution)
    ```bash
-   python3 SKILL_DIR/scripts/html2png.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/png/ --concurrency 4
+   python SKILL_DIR/scripts/html2png.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/png/ --concurrency 4
    ```
 
    Uses Puppeteer for pixel-perfect screenshots. Concurrency controls parallel screenshot threads.
    **Degradation**: If Node.js/Puppeteer unavailable, skip PNG branch entirely.
 
-5. **PNG PPTX Export** -- Run `png2pptx.py` (PNG as background, cross-platform 100%% visual fidelity)
+5. **PNG PPTX Export** -- Run `png2pptx.py` (PNG as background, cross-platform 100% visual fidelity)
    ```bash
-   python3 SKILL_DIR/scripts/png2pptx.py OUTPUT_DIR/png/ -o OUTPUT_DIR/presentation-png.pptx
+   python SKILL_DIR/scripts/png2pptx.py OUTPUT_DIR/png/ -o OUTPUT_DIR/presentation-png.pptx
    ```
 
    PNG fills each slide as background. Text is not editable but visuals are pixel-perfect.

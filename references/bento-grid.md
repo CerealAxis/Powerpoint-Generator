@@ -35,14 +35,24 @@
 - **不使用 Bento Grid**，自由排版
 
 ### 目录页 (toc)
-- 2-5 个等大卡片网格
+- 根据 Part 数量选择等大卡片网格布局
 
-| 卡片数 | grid-template-columns | 单卡尺寸 |
-|-------|----------------------|---------|
+**布局决策规则**：
+- 1 Part：单卡居中（可用 accent 色条装饰）
+- 2 Parts：2 栏等宽布局
+- 3 Parts：3 栏等宽布局
+- 4 Parts：2x2 网格布局
+- 5+ Parts：3+2 网格布局（第一行3卡，第二行2卡居中）
+
+| Part 数量 | grid-template-columns | 单卡尺寸 |
+|---------|----------------------|---------|
+| 1 | 单卡居中 | 800x300 |
 | 2 | 1fr 1fr | 590x540 |
 | 3 | repeat(3, 1fr) | 387x540 |
 | 4 | 1fr 1fr / 1fr 1fr (2x2) | 590x260 |
-| 5 | repeat(3, 1fr) / repeat(2, 1fr) (3+2) | 混合 |
+| 5+ | repeat(3, 1fr) / repeat(2, 1fr) (3+2) | 混合 |
+
+**每张目录卡内容**：Part 编号（大号 accent 色）+ 章节标题 + 简短描述（如需要）
 
 ### 章节封面 (section)
 - "PART 0X" font-size=20px, accent-primary, letter-spacing=2px

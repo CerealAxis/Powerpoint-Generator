@@ -33,6 +33,10 @@ npm install -g dom-to-svg esbuild
 
 ### Python 环境
 
+```bash
+pip install python-pptx lxml Pillow
+```
+
 ---
 
 ## 管线强制声明 [红线]
@@ -314,7 +318,7 @@ def find_recovery_point(run_dir: Path) -> str:
 
 **执行**：阅读 `references/style-system.md`，选择或推断风格
 
-根据主题关键词匹配 8 种预置风格之一（暗黑科技 / 小米橙 / 蓝白商务 / 朱红宫墙 / 清新自然 / 紫金奢华 / 极简灰白 / 活力彩虹），详细匹配规则和完整 JSON 定义见 `references/style-system.md`。
+根据主题关键词匹配 16 种预置风格之一（暗黑科技 / 小米橙 / 蓝白商务 / 朱红宫墙 / 清新自然 / 紫金奢华 / 极简灰白 / 活力彩虹 / 渐变蓝 / 暖阳夕照 / 北欧极简 / 赛博朋克 / 优雅金 / 深海蓝 / 复古胶片 / 稳重蓝），详细匹配规则和完整 JSON 定义见 `references/style-system.md`。
 
 **产物**：风格定义 JSON -> 保存为 `OUTPUT_DIR/style.json`
 
@@ -388,6 +392,14 @@ Unsplash
 | 紫金奢华 | luxury, purple gold, premium, elegant, metallic |
 | 极简灰白 | minimal, grayscale, clean, geometric, academic |
 | 活力彩虹 | colorful, vibrant, energetic, playful, gradient, pop art |
+| 渐变蓝 | gradient blue, tech, futuristic, clean, digital, professional |
+| 暖阳夕照 | warm orange, sunset, lifestyle, travel, food, cozy lighting |
+| 北欧极简 | minimal, white, clean, scandinavian, lifestyle, bright |
+| 赛博朋克 | neon, cyber, dark, futuristic, gaming, vibrant, holographic |
+| 优雅金 | gold, luxury, elegant, premium, metallic, champagne |
+| 深海蓝 | ocean blue, deep sea, marine, aquatic, serene, gradient |
+| 复古胶片 | vintage, film grain, retro, warm tones, nostalgic, cinematic |
+| 稳重蓝 | corporate, professional, blue, business, formal, trustworthy |
 
 ##### 按页面类型调整
 
@@ -487,13 +499,13 @@ npm install puppeteer dom-to-svg 2>/dev/null
 
 1. **合并预览** -- 运行 `html_packager.py`
    ```bash
-   python3 SKILL_DIR/scripts/html_packager.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/preview.html
+   python SKILL_DIR/scripts/html_packager.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/preview.html
    ```
 
 2. **SVG 转换** -- 运行 `html2svg.py`（DOM 直接转 SVG，保留 `<text>` 可编辑）
    > **重要**：HTML 设计稿必须遵守 `references/pipeline-compat.md` 中的管线兼容性规则，否则转换后会出现元素丢失、位置错位等问题。
    ```bash
-   python3 SKILL_DIR/scripts/html2svg.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/svg/
+   python SKILL_DIR/scripts/html2svg.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/svg/
    ```
 
    底层用 dom-to-svg（自动安装），首次运行会 esbuild 打包。
@@ -501,14 +513,14 @@ npm install puppeteer dom-to-svg 2>/dev/null
 
 3. **SVG PPTX 导出** -- 运行 `svg2pptx.py`（OOXML 原生 SVG 嵌入，PPT 365 可编辑）
    ```bash
-   python3 SKILL_DIR/scripts/svg2pptx.py OUTPUT_DIR/svg/ -o OUTPUT_DIR/presentation-svg.pptx --html-dir OUTPUT_DIR/slides/
+   python SKILL_DIR/scripts/svg2pptx.py OUTPUT_DIR/svg/ -o OUTPUT_DIR/presentation-svg.pptx --html-dir OUTPUT_DIR/slides/
    ```
 
    PPT 365 中右键图片 -> "转换为形状" 即可编辑文字和形状。
 
 4. **PNG 截图** -- 运行 `html2png.py`（Puppeteer 截图，支持并行）
    ```bash
-   python3 SKILL_DIR/scripts/html2png.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/png/ --concurrency 4
+   python SKILL_DIR/scripts/html2png.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/png/ --concurrency 4
    ```
 
    使用 Puppeteer 进行像素级截图，并发数控制并行线程数。
@@ -516,7 +528,7 @@ npm install puppeteer dom-to-svg 2>/dev/null
 
 5. **PNG PPTX 导出** -- 运行 `png2pptx.py`（PNG 作为背景，跨平台 100% 视觉还原）
    ```bash
-   python3 SKILL_DIR/scripts/png2pptx.py OUTPUT_DIR/png/ -o OUTPUT_DIR/presentation-png.pptx
+   python SKILL_DIR/scripts/png2pptx.py OUTPUT_DIR/png/ -o OUTPUT_DIR/presentation-png.pptx
    ```
 
    PNG 填满每页幻灯片作为背景，文字不可编辑但视觉效果像素级还原。
