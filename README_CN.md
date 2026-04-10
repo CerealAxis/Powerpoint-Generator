@@ -61,7 +61,7 @@ Step 6 后处理（HTML → SVG → PPTX）
 | **12 种卡片类型** | text / data / list / tag_cloud / process / timeline / comparison / quote / stat_block / feature_grid / image_text / data_highlight |
 | **智能配图** | AI 生成 / Unsplash 图库 + 5 种视觉融入技法（渐隐融合 / 色调蒙版 / 氛围底图 / 裁切视窗 / 圆形裁切） |
 | **跨页叙事** | 密度交替节奏 / 章节色彩递进 / 封面-结尾呼应 / 渐进揭示 |
-| **PPTX 完美兼容** | HTML → SVG → PPTX 管线，PPT 365 中右键"转换为形状"即可编辑所有文字和图形 |
+| **双 PPTX 导出** | SVG PPTX（文字可编辑）+ PNG PPTX（像素级还原）— HTML → SVG/PNG → PPTX 管线 |
 
 ---
 
@@ -110,9 +110,18 @@ Powerpoint-Generator/
 │   ├── method.md         # 核心方法论
 │   └── pipeline-compat.md # 管线兼容性规则
 └── scripts/
-    ├── html_packager.py  # HTML 合并预览
-    ├── html2svg.py       # HTML → SVG
-    └── svg2pptx.py       # SVG → PPTX
+    ├── html_packager.py      # HTML 合并预览
+    ├── html2svg.py          # HTML → SVG
+    ├── html2png.py          # HTML → PNG（Puppeteer 截图）
+    ├── svg2pptx.py          # SVG → PPTX（文字可编辑）
+    ├── png2pptx.py          # PNG → PPTX（像素级还原）
+    ├── contract_validator.py   # 合同校验
+    ├── planning_validator.py   # Planning JSON 校验
+    ├── milestone_check.py      # 里程碑验收
+    ├── prompt_harness.py       # 动态 Prompt 生成
+    ├── resource_loader.py      # 资源路由
+    ├── visual_qa.py           # 视觉 QA（截图+审计）
+    └── subagent_logger.py      # Subagent 运行时日志
 ```
 
 ---

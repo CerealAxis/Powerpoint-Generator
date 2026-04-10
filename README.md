@@ -61,7 +61,7 @@ Step 6 Post-processing (HTML → SVG → PPTX)
 | **12 Card Types** | text / data / list / tag_cloud / process / timeline / comparison / quote / stat_block / feature_grid / image_text / data_highlight |
 | **Smart Illustrations** | AI generation / Unsplash library + 5 visual fusion techniques (fade blend / tinted overlay / ambient background / crop viewport / circular crop) |
 | **Cross-page Narrative** | Density alternation / chapter color progression / cover-ending echo / progressive revelation |
-| **PPTX Perfect Compatibility** | HTML → SVG → PPTX pipeline, right-click "Convert to Shape" in PPT 365 to edit all text and shapes |
+| **Dual PPTX Export** | SVG PPTX (editable vectors) + PNG PPTX (pixel-perfect fidelity) — HTML → SVG/PNG → PPTX pipeline |
 
 ---
 
@@ -112,7 +112,16 @@ Powerpoint-Generator/
 └── scripts/
     ├── html_packager.py  # HTML merge preview
     ├── html2svg.py       # HTML → SVG
-    └── svg2pptx.py       # SVG → PPTX
+    ├── html2png.py       # HTML → PNG (Puppeteer screenshot)
+    ├── svg2pptx.py       # SVG → PPTX (editable)
+    ├── png2pptx.py       # PNG → PPTX (pixel-perfect)
+    ├── contract_validator.py   # Contract validation
+    ├── planning_validator.py   # Planning JSON validation
+    ├── milestone_check.py      # Milestone checker
+    ├── prompt_harness.py       # Dynamic prompt generator
+    ├── resource_loader.py      # Resource router
+    ├── visual_qa.py           # Visual QA (screenshot + audit)
+    └── subagent_logger.py      # Subagent runtime logger
 ```
 
 ---

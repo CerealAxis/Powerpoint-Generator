@@ -58,8 +58,10 @@ Step 1 → Step 2 → Step 3 → Step 4 → Step 5 → Step 6
 
 ### Only Allowed Degradation
 
-- Node.js unavailable → Output preview.html only
-- Python unavailable → Output preview.html only, and inform the user about the missing Python environment. Wait for user feedback before seeking a solution.
+- Node.js unavailable → Skip SVG branch, output preview.html only. Notify user.
+- Python unavailable → Skip SVG + PNG + PPTX branches, output preview.html only. Notify user and wait for feedback.
+- Puppeteer unavailable → Skip PNG branch (visual QA also skipped). SVG branch continues.
+- Vision model unavailable → Skip visual audit in visual_qa.py, DOM assertion still runs.
 
 ### Step Enforcement Levels
 
@@ -570,7 +572,7 @@ ppt-output/
 | File | When to Read | Key Content |
 |------|-------------|-------------|
 | `references/prompts.md` | Before each generation step | 5 Prompt templates (research/outline/planning/design/notes) |
-| `references/style-system.md` | Step 5a | 8 preset styles + CSS variables + style JSON model |
+| `references/style-system.md` | Step 5a | 16 preset styles + CSS variables + style JSON model |
 | `references/bento-grid.md` | Step 5c | 7 layout specs + 12 card types + decision matrix |
 | `references/method.md` | First-time understanding | Core philosophy and methodology |
 | `references/pipeline-compat.md` | **During Step 5c design draft generation** | CSS prohibited list + image paths + font size mixing + SVG text + ring charts + svg2pptx notes |

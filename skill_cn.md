@@ -54,8 +54,10 @@ Step 1 → Step 2 → Step 3 → Step 4 → Step 5 → Step 6
 
 ### 唯一允许的降级
 
-- Node.js 不可用 → 只输出 preview.html
-- Python 不可用 → 只输出 preview.html，并告知用户缺少 Python 环境，等待用户反馈后再寻求解决方案
+- Node.js 不可用 → 跳过 SVG 分支，只输出 preview.html，告知用户
+- Python 不可用 → 跳过 SVG + PNG + PPTX 分支，只输出 preview.html，告知用户并等待反馈
+- Puppeteer 不可用 → 跳过 PNG 分支（Visual QA 也跳过），SVG 分支继续
+- 视觉模型不可用 → 跳过视觉审计，DOM 断言仍正常运行
 
 ### 各 Step 强制级别
 
@@ -563,7 +565,7 @@ ppt-output/
 | 文件 | 何时阅读 | 关键内容 |
 |------|---------|---------|
 | `references/prompts.md` | 每步生成前 | 5 套 Prompt 模板（调研/大纲/策划/设计/备注）|
-| `references/style-system.md` | Step 5a | 8 种预置风格 + CSS 变量 + 风格 JSON 模型 |
-| `references/bento-grid.md` | Step 5c | 7 种布局精确坐标 + 5 种卡片类型 + 决策矩阵 |
+| `references/style-system.md` | Step 5a | 16 种预置风格 + CSS 变量 + 风格 JSON 模型 |
+| `references/bento-grid.md` | Step 5c | 7 种布局 + 12 种卡片类型 + 决策矩阵 |
 | `references/method.md` | 初次了解 | 核心理念与方法论 |
 | `references/pipeline-compat.md` | **Step 5c 设计稿生成时** | CSS 禁止清单 + 图片路径 + 字号混排 + SVG text + 环形图 + svg2pptx 注意事项 |
