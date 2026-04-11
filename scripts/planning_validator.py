@@ -22,7 +22,10 @@ DENSITY_LEVELS = ["low", "medium", "high"]
 CARD_TYPES = [
     "text", "data", "list", "tag_cloud", "process",
     "timeline", "comparison", "quote", "stat_block",
-    "feature_grid", "image_text", "data_highlight"
+    "feature_grid", "image_text", "data_highlight",
+    # 业务扩展类型
+    "chip_card", "ai_card", "service_card", "product_card",
+    "timeline_item", "stat_item", "highlight_card"
 ]
 
 LAYOUTS = [
@@ -49,7 +52,7 @@ def validate_page_planning(page_data: dict, page_num: int, strict: bool = False)
         issues.append(f"Page {page_num}: page_number mismatch (expected {page_num}, got {page_data['page_number']})")
 
     # page_type 校验
-    valid_page_types = ["cover", "section", "content", "end"]
+    valid_page_types = ["cover", "toc", "section", "chapter_cover", "content", "end"]
     if "page_type" in page_data and page_data["page_type"] not in valid_page_types:
         issues.append(f"Page {page_num}: invalid page_type '{page_data['page_type']}'. Must be one of {valid_page_types}")
 

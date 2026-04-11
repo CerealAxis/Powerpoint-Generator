@@ -270,7 +270,7 @@
   "cards": [
     {
       "position": "位置描述（top-left / top-right / bottom-left 等）",
-      "card_type": "text | data | list | tag_cloud | process | timeline | comparison | quote | stat_block | feature_grid | image_text | data_highlight",
+      "card_type": "text | data | list | tag_cloud | process | timeline | comparison | quote | stat_block | feature_grid | image_text | data_highlight | chip_card | ai_card | service_card | product_card | timeline_item | stat_item | highlight_card",
       "title": "卡片标题（12字内）",
       "content": "卡片正文（80字内）",
       "data_points": ["具体数据"],

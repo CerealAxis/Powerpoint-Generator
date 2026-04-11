@@ -302,8 +302,12 @@ python SKILL_DIR/scripts/milestone_check.py OUTPUT_DIR/ --summary
 1. 根据主题规划查询（数量参考复杂度表）
 2. 用所有可用的信息获取工具并行搜索
 3. 每组结果摘要总结
+4. **写入搜索结果文件**：
+   ```bash
+   write_tool_call("OUTPUT_DIR/search.txt", search_results_json_string)
+   ```
 
-**产物**：搜索结果集合 JSON
+**产物**：搜索结果集合 JSON -> 保存为 `OUTPUT_DIR/search.txt`
 
 ---
 
@@ -500,6 +504,12 @@ Unsplash
 
 **并行调度**：所有页面通过 PageAgent-N 子代理并行生成，每个 PageAgent 只负责一页。
 
+**⚠️ 子代理不可用时的降级**：
+若子代理启动失败（权限/交互模式问题）：
+1. 主 Agent 直接以**串行**顺序生成所有 HTML 页面
+2. 每页遵循相同的生成和 DOM 断言工作流程（见下文）
+3. 通知用户降级模式："Subagent unavailable, generating in serial mode"
+
 **并行策略**：
 
 | 规模 | 页数 | 策略 |
@@ -508,7 +518,7 @@ Unsplash
 | **标准** | 6-18 页 | 全部页面并行（独立）|
 | **大型** | > 18 页 | 按 Part 并行，Part 内全部并行 |
 
-**PageAgent 工作流程**：
+**PageAgent 工作流程**（子代理不可用时主 Agent 串行模式同样适用）：
 ```
 PageAgent-N
     │
@@ -520,8 +530,9 @@ PageAgent-N
     │       python SKILL_DIR/scripts/visual_qa.py OUTPUT_DIR/slides/slide-N.html --verbose
     │       检查：overflow:hidden / 禁止 CSS / SVG text / 图片路径有效
     │       FORBIDDEN 项目（conic-gradient / ::before-decoration / border-triangle）直接失败
-    │       失败重试 1 次，仍失败则报告 Main Agent 介入修复 HTML 后继续
-    └── 6. 输出：--- PAGE N COMPLETE ---
+    │       ❌ 失败重试 1 次，仍失败则报告 Main Agent 介入修复 HTML 后继续
+    │       ✅ 通过检查后，才输出步骤6
+    └── 6. 输出：--- PAGE N COMPLETE ---（必须等步骤5通过）
 ```
 
 **DOM 断言检查项**：
@@ -534,7 +545,9 @@ PageAgent-N
 
 **失败处理**：
 - 单页失败不影响其他页面
-- 失败页进入 PagePatchAgent 重试队列（最多 2 次重试）
+- 失败页进入 PagePatchAgent 重试队列（最多 5 次重试）
+- **每页必须通过 DOM Assertion 才能算完成**
+- 两层重试机制：visual_qa.py 重试（1次）+ PagePatchAgent 队列重试（最多5次）
 - 主 Agent 等待所有 PageAgent 完成后进入 Step 6
 
 **每页 Prompt 组装公式**：

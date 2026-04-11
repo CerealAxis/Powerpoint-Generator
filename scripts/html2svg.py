@@ -435,13 +435,16 @@ const path = require('path');
 """
 
 # esbuild 打包入口 -- 用 IIFE 包装确保 window.__domToSvg 正确暴露
+# dom-to-svg v0.4+ 的导出结构为 ES module，兼容处理
 BUNDLE_ENTRY = """
 (function() {
   var _d2s = require('dom-to-svg');
+  // v0.4+ 将 API 挂载在 default 导出上，或直接是 module 对象
+  var _api = _d2s.default || _d2s;
   window.__domToSvg = {
-    documentToSVG: _d2s.documentToSVG,
-    elementToSVG: _d2s.elementToSVG,
-    inlineResources: _d2s.inlineResources
+    documentToSVG: _api.documentToSVG,
+    elementToSVG: _api.elementToSVG,
+    inlineResources: _api.inlineResources
   };
 })();
 """

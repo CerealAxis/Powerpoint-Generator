@@ -300,8 +300,12 @@ Main Agent ← All Subagents Complete ← Step 6 Post-Processing
 1. Plan queries based on topic (quantity reference complexity table)
 2. Use all available information retrieval tools for parallel search
 3. Summarize each group of results
+4. **Write search results to file**:
+   ```bash
+   write_tool_call("OUTPUT_DIR/search.txt", search_results_json_string)
+   ```
 
-**Product**: Search results collection JSON
+**Product**: Search results collection JSON -> Save as `OUTPUT_DIR/search.txt`
 
 ---
 
@@ -498,6 +502,12 @@ Prompt must satisfy **4 dimensions** simultaneously, assembled by formula:
 
 **Parallel Scheduling**: All pages generated in parallel through PageAgent-N subagents, each PageAgent only responsible for one page.
 
+**⚠️ Fallback when Subagents unavailable**: 
+If subagent spawning fails due to permission/interactive mode issues:
+1. Main Agent generates all HTML pages directly in **serial** order
+2. Each page follows the same generation and DOM assertion workflow (see below)
+3. Notify user of degraded mode: "Subagent unavailable, generating in serial mode"
+
 **Parallel Strategy**:
 
 | Scale | Pages | Strategy |
@@ -506,7 +516,7 @@ Prompt must satisfy **4 dimensions** simultaneously, assembled by formula:
 | **Standard** | 6-18 pages | All pages in parallel (independent) |
 | **Large** | > 18 pages | Parallel by Part, all parallel within Part |
 
-**PageAgent Workflow**:
+**PageAgent Workflow** (or Main Agent serial mode when subagents unavailable):
 ```
 PageAgent-N
     │
@@ -518,8 +528,9 @@ PageAgent-N
     │       python SKILL_DIR/scripts/visual_qa.py OUTPUT_DIR/slides/slide-N.html --verbose
     │       Check: overflow:hidden / forbidden CSS / SVG text / image paths valid
     │       FORBIDDEN items (conic-gradient / ::before-decoration / border-triangle) fail directly
-    │       Retry 1 time on failure, still fails then report Main Agent to fix HTML and continue
-    └── 6. Output: --- PAGE N COMPLETE ---
+    │       ❌ Retry 1 time on failure, still fails then report Main Agent to fix HTML and continue
+    │       ✅ Pass visual_qa.py, then proceed to step 6
+    └── 6. Output: --- PAGE N COMPLETE --- (only after step 5 passes)
 ```
 
 **DOM Assertion Check Items**:
@@ -532,7 +543,9 @@ PageAgent-N
 
 **Failure Handling**:
 - Single page failure does not affect other pages
-- Failed page enters PagePatchAgent retry queue (up to 2 retries)
+- Failed page enters PagePatchAgent retry queue (up to 5 retries)
+- **Each page must pass DOM Assertion to be considered complete**
+- Two-layer retry: visual_qa.py retry (1x) + PagePatchAgent queue retry (up to 5x)
 - Main Agent waits for all PageAgents to complete then enters Step 6
 
 **Per-Page Prompt Assembly Formula**:
