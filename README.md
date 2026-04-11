@@ -117,8 +117,6 @@ Powerpoint-Generator/
     ├── contract_validator.py   # Contract validation
     ├── planning_validator.py   # Planning JSON validation
     ├── milestone_check.py      # Milestone checker
-    ├── prompt_harness.py       # Dynamic prompt generator
-    ├── resource_loader.py      # Resource router
     ├── visual_qa.py           # Visual QA (screenshot + audit)
     └── subagent_logger.py      # Subagent runtime logger
 ```

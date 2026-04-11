@@ -18,6 +18,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Tuple, List
 
 # 可通过环境变量配置视觉模型
 VISION_MODEL = "gpt-4o"  # 可改为 claude-sonnet / gemini-pro-vision 等
@@ -26,7 +27,7 @@ VISION_MODEL = "gpt-4o"  # 可改为 claude-sonnet / gemini-pro-vision 等
 # -------------------------------------------------------------------
 # DOM 结构断言（不需要视觉模型）
 # -------------------------------------------------------------------
-def dom_assert(html_path: Path) -> tuple[bool, list]:
+def dom_assert(html_path: Path) -> Tuple[bool, list]:
     """纯代码 DOM 结构检查，不需要视觉模型。"""
     issues = []
 
@@ -88,30 +89,39 @@ def dom_assert(html_path: Path) -> tuple[bool, list]:
 # Puppeteer 截图
 # -------------------------------------------------------------------
 async def capture_screenshot(html_path: Path, output_png: Path) -> bool:
-    """使用 Puppeteer 截图。"""
+    """使用 Playwright Python 截图。"""
     try:
-        import puppeteer
+        from playwright.async_api import async_playwright
     except ImportError:
-        print("WARNING: puppeteer not installed. Run: npm install puppeteer", file=sys.stderr)
+        print("WARNING: playwright not installed. Run: pip install playwright", file=sys.stderr)
         return False
 
     browser = None
     try:
-        browser = await puppeteer.launch({
-            "headless": True,
-            "args": ["--no-sandbox", "--disable-setuid-sandbox"]
-        })
-        page = await browser.newPage()
-        await page.setViewport({"width": 1280, "height": 720, "deviceScaleFactor": 2})
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+            )
+            page = await browser.new_page()
+            await page.set_viewport_size({"width": 1280, "height": 720})
 
-        html_url = f"file://{html_path.absolute()}"
-        await page.goto(html_url, {"waitUntil": "networkidle0"})
-        await page.screenshot({
-            "path": str(output_png),
-            "type": "png",
-            "clip": {"x": 0, "y": 0, "width": 1280, "height": 720}
-        })
-        return True
+            html_url = f"file://{html_path.absolute()}"
+            await page.goto(html_url, wait_until="networkidle")
+
+            # 等待字体加载
+            try:
+                await page.evaluate("document.fonts.ready")
+            except Exception:
+                pass
+
+            await page.screenshot(
+                path=str(output_png),
+                type="png",
+                full_page=False,
+                clip={"x": 0, "y": 0, "width": 1280, "height": 720}
+            )
+            return True
     except Exception as e:
         print(f"ERROR: Screenshot failed: {e}", file=sys.stderr)
         return False
@@ -142,7 +152,7 @@ async def batch_capture(slides_dir: Path, concurrency: int = 4) -> int:
 # -------------------------------------------------------------------
 # 视觉模型审计（需要支持视觉的模型）
 # -------------------------------------------------------------------
-def visual_audit(screenshot_path: Path, model: str = VISION_MODEL) -> tuple[bool, list]:
+def visual_audit(screenshot_path: Path, model: str = VISION_MODEL) -> Tuple[bool, list]:
     """使用视觉模型审计截图（需要模型支持视觉）。"""
     issues = []
 

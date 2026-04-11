@@ -326,6 +326,18 @@
 ## 配图信息（如有）
 {{IMAGE_INFO}}
 
+（IMAGE_INFO 格式定义 — 当 Step 5b 存在配图时，由 Main Agent 注入：
+```json
+{
+  "image_file": "images/slide-{N}.png",
+  "image_type": "cover | section | content | data_visual",
+  "semantic": "一句话描述图片内容（如：科技感城市夜景，深蓝色调）",
+  "alt_text": "封面配图：XXX",
+  "fusion_technique": "fade_blend | tint_mask | ambient_bg | crop_viewport | circle_crop"
+}
+```
+无配图时此块留空或省略。）
+
 ---
 
 ## 画布规范（不可修改）

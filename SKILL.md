@@ -40,8 +40,54 @@ npm install -g puppeteer-core
 ### Python Environment
 
 ```bash
-pip install python-pptx lxml Pillow
+pip install python-pptx lxml Pillow playwright
+playwright install chromium  # 安装 Chromium 浏览器（首次需运行）
 ```
+
+> **注意**：html2png.py 使用 Playwright Python（纯 Python 库），不需要 Node.js。
+> html2svg.py 使用 Node.js Puppeteer（如只需 SVG/PPTX 分支且 Node.js 可用，可跳过 Playwright）。
+> 两者互不影响，可独立使用。
+
+---
+
+## Pre-Flight: Output Directory Check [STOP -- Must Verify]
+
+> 每次启动 PPT 流程前，**必须**检查 `OUTPUT_DIR` 是否为空。若有遗留文件，可能污染本次产物。
+
+**Execute**:
+```bash
+ls -la OUTPUT_DIR/
+```
+
+**Decision Table**:
+
+| 检查结果 | 行为 |
+|---------|------|
+| 目录不存在或为空 | 直接进入 Step 1 |
+| 有遗留文件 | **停止并告知用户**：列出所有文件，说明风险，等待用户确认删除或更换目录 |
+| 用户要求删除 | 执行 `rm -rf OUTPUT_DIR/*` 后继续 |
+| 用户指定新目录 | 更新 `OUTPUT_DIR` 变量，重新检查 |
+
+**强制提示文案**（直接发给用户）:
+```
+⚠️ 工作目录 ppt-output/ 不为空，检测到以下文件：
+  - xiaomi_su7_pptx.pptx (2026-04-11 08:22)
+  - presentation-svg.pptx (2026-04-11 08:20)
+  ...
+这些文件与本次「苹果公司介绍」主题不符。若继续可能造成产物混乱。
+
+请选择：
+1. 删除所有旧文件（推荐）
+2. 使用新的输出目录
+3. 取消本次任务
+```
+
+**断点恢复检查**（目录为空或清理后，Main Agent 启动时必须执行）:
+```bash
+python SKILL_DIR/scripts/milestone_check.py OUTPUT_DIR/ --summary
+```
+
+根据 milestone 状态决定从哪个 Step 继续。若已有历史产物，禁止无视并重复生成。
 
 ---
 
@@ -64,9 +110,10 @@ Step 1 → Step 2 → Step 3 → Step 4 → Step 5 → Step 6
 
 ### Only Allowed Degradation
 
-- Node.js unavailable → Skip SVG branch, output preview.html only. Notify user.
+- Node.js unavailable → Skip SVG branch (html2svg.py needs Node.js), PNG branch continues (html2png.py is pure Python).
 - Python unavailable → Skip SVG + PNG + PPTX branches, output preview.html only. Notify user and wait for feedback.
-- Puppeteer unavailable → Skip PNG branch (visual QA also skipped). SVG branch continues.
+- Playwright unavailable → Skip PNG branch (visual_qa.py also skipped). SVG branch continues.
+- Vision model unavailable → Skip visual audit in visual_qa.py, DOM assertion still runs.
 - Vision model unavailable → Skip visual audit in visual_qa.py, DOM assertion still runs.
 
 ### Step Enforcement Levels
@@ -142,52 +189,28 @@ Automatically adjust process granularity based on target page count:
 ---
 
 ## Breakpoint Recovery
-> The workflow is stateless. After interruption, the Main Agent scans existing artifacts on disk to determine the recovery point automatically.
+> The workflow is stateless. After interruption, use milestone_check.py to determine the recovery point automatically.
 
-### Recovery Logic
-
-```python
-def find_recovery_point(run_dir: Path) -> str:
-    """Scan existing artifacts to determine recovery point."""
-    milestones = [
-        ("presentation-svg.pptx", "P5-SVG-DONE"),
-        ("presentation-png.pptx", "P5-PNG-DONE"),
-        ("png/slide-*.png", "P4-VisualQA-DONE"),
-        ("slides/slide-*.html", "P4-PAGE-DONE"),
-        ("style.json", "P3.5-STYLE-LOCKED"),
-        ("outline.txt", "P3-OUTLINE-DONE"),
-        ("search.txt", "P2-SEARCH-DONE"),
-        ("requirements-interview.txt", "P1-REQUIREMENTS-DONE"),
-    ]
-    for pattern, step in reversed(milestones):
-        matches = list(run_dir.glob(pattern))
-        if matches:
-            return step
-    return "P0-START"
+**Execute**:
+```bash
+python SKILL_DIR/scripts/milestone_check.py OUTPUT_DIR/ --summary
 ```
 
-### Recovery Rules
+**Milestone States**:
+| Milestone | Check | Resume From |
+|-----------|-------|------------|
+| P0 | No artifacts found | Step 1 |
+| P1 | `requirements-interview.txt` exists | Step 2 |
+| P2 | `search.txt` exists | Step 3 |
+| P3 | `outline.json` exists | Step 4 |
+| P3.5 | `style.json` exists | Step 5a |
+| P4 | `slides/slide-*.html` exist | Step 6 |
+| P5 | `presentation-svg.pptx` or `presentation-png.pptx` exists | Done |
 
-| Rule | Description |
-|------|-------------|
-| **No state files** | The workflow does not rely on any progress state files |
-| **Scan disk artifacts** | Recovery point is inferred from existing files on disk |
-| **Partial completion OK** | Even one page's HTML exists = P4 is considered reached for that page |
-| **Agent decides** | The Main Agent decides which Subagents to spawn based on scan results |
-| **No rollback** | Artifacts already written are never deleted during recovery |
-
-### Artifact Existence = Milestone Reached
-
-| Artifact | Milestone |
-|---------|----------|
-| `requirements-interview.txt` | P1 Complete |
-| `search.txt` | P2 Complete |
-| `outline.txt` | P3 Complete |
-| `style.json` | P3.5 Style Locked |
-| `slides/slide-N.html` (any) | P4 Page generation in progress |
-| `png/slide-N.png` (all) | P4 Visual QA Complete |
-| `presentation-svg.pptx` | P5 SVG Export Complete |
-| `presentation-png.pptx` | P5 PNG Export Complete |
+**Rules**:
+- Partial HTML files count as P4 reached (resume from Step 6)
+- Artifacts already written are never deleted during recovery
+- Run `milestone_check.py --check P3` to verify a specific milestone
 
 ---
 
@@ -299,6 +322,34 @@ Main Agent ← All Subagents complete ← Step 6 Post-processing
 
 ---
 
+### Step 3.5: Contract Validation
+
+Before proceeding to content planning, validate the artifacts generated so far:
+
+**Execute**:
+```bash
+# Validate outline contract
+python SKILL_DIR/scripts/contract_validator.py outline OUTPUT_DIR/outline.json
+
+# Validate style contract (if style.json already exists)
+python SKILL_DIR/scripts/contract_validator.py style OUTPUT_DIR/style.json
+```
+
+**⚠️ 环境要求**: 需要 Python ≥ 3.8（`Tuple` 类型注解）。若 Python 版本过低导致导入失败，请升级 Python 或在支持的环境中运行。
+
+**Outline Contract** (`outline.json` must contain):
+- `ppt_outline.parts[]` — at least 1 part
+- Each part has `part_title` and `pages[]` — at least 2 content pages per part
+- Each page has `title` and `content`
+
+**Style Contract** (`style.json` must contain):
+- `style_id` — one of the 16 preset style IDs
+- `background`, `card`, `text`, `accent` — all present
+
+**If validation fails**: Return to Step 3 to regenerate the defective artifact.
+
+---
+
 ### Step 4: Content Allocation + Planning Draft [Cannot Skip -- Must Wait for User Confirmation of Outline]
 
 > Combine content allocation and planning draft generation into one step. While thinking about what content each page should have, also decide layout and card types, making it more natural and efficient.
@@ -318,6 +369,25 @@ Show planning draft overview to user, recommend waiting for user confirmation be
 
 ---
 
+### Step 4.5: Planning Validation
+
+Before entering design draft generation, validate planning.json's density contract:
+
+**Execute**:
+```bash
+python SKILL_DIR/scripts/planning_validator.py OUTPUT_DIR/planning.json --strict --summary
+```
+
+**⚠️ 环境要求**: 需要 Python ≥ 3.8（`Tuple` / `List` 类型注解）。若 Python 版本过低导致导入失败，请升级 Python 或在支持的环境中运行。
+
+**Density Contract Checks (strict mode)**:
+- Content pages must have **≥ 3 cards**
+- Content pages must have **≥ 2 different card_types**
+- Content pages must have **≥ 1 data-type card**
+
+**If validation fails**: Return to Step 4 to supplement page content.
+
+---
 
 ### Step 5: Style Decision + Design Draft Generation
 
@@ -327,7 +397,11 @@ Split into three sub-steps, **order cannot be reversed**:
 
 **Execute**: Read `references/style-system.md`, select or infer style
 
-Match one of 8 preset styles based on topic keywords (dark tech / xiaomi orange / blue white business / royal red / fresh green / luxury purple / minimal gray / vibrant rainbow), detailed matching rules and full JSON definitions in `references/style-system.md`.
+Match one of **16 preset styles** based on topic keywords:
+
+dark tech / xiaomi orange / blue white / royal red / fresh green / luxury purple / minimal gray / vibrant rainbow / gradient blue / warm sunset / nordic white / cyber punk / elegant gold / ocean depth / retro film / corporate blue
+
+See `references/style-system.md` for detailed matching rules and full JSON definitions.
 
 **Output**: Style definition JSON -> Save as `OUTPUT_DIR/style.json`
 
@@ -451,9 +525,21 @@ PageAgent-N
     ├── 2. Read style.json
     ├── 3. Read images/planning-N.png (if exists)
     ├── 4. Generate slide-N.html
-    ├── 5. DOM self-check (overflow / pseudo-elements / hardcoded colors)
+    ├── 5. ⛔ DOM Assertion（强制，必须）— Run visual_qa.py:
+    │       python SKILL_DIR/scripts/visual_qa.py OUTPUT_DIR/slides/slide-N.html --verbose
+    │       Check: overflow:hidden / no forbidden CSS / no SVG text / valid image refs
+    │       FORBIDDEN 项目（conic-gradient / ::before-decoration / border-triangle）直接失败
+    │       失败重试 1 次，仍失败则报告 Main Agent 介入修复 HTML 后继续
     └── 6. Output: --- PAGE N COMPLETE ---
 ```
+
+**DOM Assertion Checks**:
+- `overflow:hidden` present on root container
+- No `::before`/`::after` used for visual decoration
+- No `conic-gradient`
+- No CSS border triangle tricks
+- No SVG `<text>` elements (use HTML overlays instead)
+- All `<img>` src paths resolve to existing files
 
 **Failure Handling**:
 - Single page failure does not affect other pages
@@ -496,8 +582,10 @@ Prompt #4 template
 ```
 slides/*.html
   ├── html_packager.py --> preview.html
-  ├── html2svg.py --> svg/*.svg --> svg2pptx.py --> presentation-svg.pptx
-  └── html2png.py --> png/*.png --> png2pptx.py --> presentation-png.pptx
+  ├── html2svg.py --> svg/*.svg
+  ├── svg2pptx.py --> presentation-svg.pptx
+  ├── html2png.py --> png/*.png
+  └── png2pptx.py --> presentation-png.pptx
 ```
 
 **Dependency check** (auto-execute on first run):
@@ -510,41 +598,44 @@ npm install puppeteer dom-to-svg 2>/dev/null
 
 1. **Merge Preview** -- Run `html_packager.py`
    ```bash
-   python SKILL_DIR/scripts/html_packager.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/preview.html
+   python SKILL_DIR/scripts/html_packager.py OUTPUT_DIR/slides/ \
+       -o OUTPUT_DIR/preview.html --title "PPT Preview"
    ```
 
-2. **SVG Conversion** -- Run `html2svg.py` (DOM direct to SVG, preserves editable `<text>`)
-   > **Important**: HTML design drafts must comply with pipeline compatibility rules in `references/pipeline-compat.md`, otherwise element loss and position misalignment will occur after conversion.
+2. **SVG Conversion** -- Run `html2svg.py`
+   > **Important**: HTML design drafts must comply with `references/pipeline-compat.md` rules.
    ```bash
-   python SKILL_DIR/scripts/html2svg.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/svg/
+   python SKILL_DIR/scripts/html2svg.py OUTPUT_DIR/slides/ \
+       -o OUTPUT_DIR/svg/
    ```
 
-   Uses dom-to-svg underneath (auto-installs), esbuild bundles on first run.
-   **Degradation**: If dom-to-svg installation fails, SVG branch will abort and notify user. PNG branch continues independently.
+   dom-to-svg bundle (`dom-to-svg.bundle.js`) is auto-built on first run.
+   **Degradation**: If dom-to-svg fails, SVG branch aborts. PNG branch continues independently.
 
-3. **SVG PPTX Export** -- Run `svg2pptx.py` (OOXML native SVG embedding, PPT 365 editable)
+3. **SVG PPTX Export** -- Run `svg2pptx.py`
    ```bash
-   python SKILL_DIR/scripts/svg2pptx.py OUTPUT_DIR/svg/ -o OUTPUT_DIR/presentation-svg.pptx --html-dir OUTPUT_DIR/slides/
+   python SKILL_DIR/scripts/svg2pptx.py OUTPUT_DIR/svg/ \
+       -o OUTPUT_DIR/presentation-svg.pptx \
+       --html-dir OUTPUT_DIR/slides/
    ```
 
-   In PPT 365, right-click image -> "Convert to Shape" to edit text and shapes.
+   In PPT 365: right-click SVG image -> "Convert to Shape" to edit text.
 
-4. **PNG Screenshot** -- Run `html2png.py` (Puppeteer screenshot, parallel execution)
+4. **PNG Screenshot** -- Run `html2png.py`
    ```bash
-   python SKILL_DIR/scripts/html2png.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/png/ --concurrency 4
+   python SKILL_DIR/scripts/html2png.py OUTPUT_DIR/slides/ \
+       -o OUTPUT_DIR/png/ -c 4
    ```
 
-   Uses Puppeteer for pixel-perfect screenshots. Concurrency controls parallel screenshot threads.
-   **Degradation**: If Node.js/Puppeteer unavailable, skip PNG branch entirely.
+   **Degradation**: If Playwright unavailable, skip PNG branch entirely (SVG branch continues).
 
-5. **PNG PPTX Export** -- Run `png2pptx.py` (PNG as background, cross-platform 100% visual fidelity)
+5. **PNG PPTX Export** -- Run `png2pptx.py`
    ```bash
-   python SKILL_DIR/scripts/png2pptx.py OUTPUT_DIR/png/ -o OUTPUT_DIR/presentation-png.pptx
+   python SKILL_DIR/scripts/png2pptx.py OUTPUT_DIR/png/ \
+       -o OUTPUT_DIR/presentation-png.pptx
    ```
 
-   PNG fills each slide as background. Text is not editable but visuals are pixel-perfect.
-
-6. **Notify User** -- Inform output location and usage:
+7. **Notify User** -- Inform output location and usage:
    - `preview.html` -- Open in browser for paginated preview
    - `presentation-svg.pptx` -- PPTX with editable text and shapes (SVG vectors)
    - `presentation-png.pptx` -- PPTX with pixel-perfect visuals (PNG backgrounds, text not editable)

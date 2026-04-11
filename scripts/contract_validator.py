@@ -17,6 +17,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Tuple
 
 
 # -------------------------------------------------------------------
@@ -48,7 +49,7 @@ CONTRACTS = {
 }
 
 
-def validate_outline(data: dict) -> tuple[bool, list]:
+def validate_outline(data: dict) -> Tuple[bool, list]:
     """校验大纲合同。"""
     issues = []
     contract = CONTRACTS["outline"]
@@ -91,7 +92,7 @@ def validate_outline(data: dict) -> tuple[bool, list]:
     return len(issues) == 0, issues
 
 
-def validate_style(data: dict) -> tuple[bool, list]:
+def validate_style(data: dict) -> Tuple[bool, list]:
     """校验风格定义合同。"""
     issues = []
     contract = CONTRACTS["style"]
@@ -117,7 +118,7 @@ def validate_style(data: dict) -> tuple[bool, list]:
     return len(issues) == 0, issues
 
 
-def validate_search(data: dict) -> tuple[bool, list]:
+def validate_search(data: dict) -> Tuple[bool, list]:
     """校验资料搜集合同。"""
     issues = []
     contract = CONTRACTS["search"]
@@ -133,7 +134,7 @@ def validate_search(data: dict) -> tuple[bool, list]:
     return len(issues) == 0, issues
 
 
-def validate_delivery(data: dict) -> tuple[bool, list]:
+def validate_delivery(data: dict) -> Tuple[bool, list]:
     """校验交付清单合同。"""
     issues = []
     contract = CONTRACTS["delivery-manifest"]
@@ -156,7 +157,7 @@ def validate_delivery(data: dict) -> tuple[bool, list]:
     return len(issues) == 0, issues
 
 
-def validate_file(contract_type: str, file_path: Path) -> tuple[bool, list]:
+def validate_file(contract_type: str, file_path: Path) -> Tuple[bool, list]:
     """根据合同类型校验文件。"""
     if not file_path.exists():
         return False, [f"File not found: {file_path}"]

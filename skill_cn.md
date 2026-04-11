@@ -34,8 +34,54 @@ npm install -g dom-to-svg esbuild
 ### Python 环境
 
 ```bash
-pip install python-pptx lxml Pillow
+pip install python-pptx lxml Pillow playwright
+playwright install chromium  # 安装 Chromium 浏览器（首次需运行）
 ```
+
+> **注意**：html2png.py 使用 Playwright Python（纯 Python 库），不需要 Node.js。
+> html2svg.py 使用 Node.js Puppeteer（如只需 SVG/PPTX 分支且 Node.js 可用，可跳过 Playwright）。
+> 两者互不影响，可独立使用。
+
+---
+
+## 飞行前检查：输出目录检查 [STOP -- 必须验证]
+
+> 每次启动 PPT 流程前，**必须**检查 `OUTPUT_DIR` 是否为空。若有遗留文件，可能污染本次产物。
+
+**执行**:
+```bash
+ls -la OUTPUT_DIR/
+```
+
+**决策表**:
+
+| 检查结果 | 行为 |
+|---------|------|
+| 目录不存在或为空 | 直接进入 Step 1 |
+| 有遗留文件 | **停止并告知用户**：列出所有文件，说明风险，等待用户确认删除或更换目录 |
+| 用户要求删除 | 执行 `rm -rf OUTPUT_DIR/*` 后继续 |
+| 用户指定新目录 | 更新 `OUTPUT_DIR` 变量，重新检查 |
+
+**强制提示文案**（直接发给用户）:
+```
+⚠️ 工作目录 ppt-output/ 不为空，检测到以下文件：
+  - xiaomi_su7_pptx.pptx (2026-04-11 08:22)
+  - presentation-svg.pptx (2026-04-11 08:20)
+  ...
+这些文件与本次主题不符。若继续可能造成产物混乱。
+
+请选择：
+1. 删除所有旧文件（推荐）
+2. 使用新的输出目录
+3. 取消本次任务
+```
+
+**断点恢复检查**（目录为空或清理后，Main Agent 启动时必须执行）:
+```bash
+python SKILL_DIR/scripts/milestone_check.py OUTPUT_DIR/ --summary
+```
+
+根据 milestone 状态决定从哪个 Step 继续。若已有历史产物，禁止无视并重复生成。
 
 ---
 
@@ -60,7 +106,8 @@ Step 1 → Step 2 → Step 3 → Step 4 → Step 5 → Step 6
 
 - Node.js 不可用 → 跳过 SVG 分支，只输出 preview.html，告知用户
 - Python 不可用 → 跳过 SVG + PNG + PPTX 分支，只输出 preview.html，告知用户并等待反馈
-- Puppeteer 不可用 → 跳过 PNG 分支（Visual QA 也跳过），SVG 分支继续
+- Playwright 不可用 → 跳过 PNG 分支（visual_qa.py 也跳过），SVG 分支继续
+- Node.js 不可用 → 跳过 SVG 分支，PNG 分支继续（html2png.py 不依赖 Node.js）
 - 视觉模型不可用 → 跳过视觉审计，DOM 断言仍正常运行
 
 ### 各 Step 强制级别
@@ -136,52 +183,28 @@ Step 1 → Step 2 → Step 3 → Step 4 → Step 5 → Step 6
 ---
 
 ## 断点恢复
-> 工作流是无状态的。中断后，主 Agent 扫描磁盘上已有产物，自动推断恢复点。
+> 工作流是无状态的。中断后，使用 milestone_check.py 确定恢复点。
 
-### 恢复逻辑
-
-```python
-def find_recovery_point(run_dir: Path) -> str:
-    """扫描已有产物，确定恢复点。"""
-    milestones = [
-        ("presentation-svg.pptx", "P5-SVG完成"),
-        ("presentation-png.pptx", "P5-PNG完成"),
-        ("png/slide-*.png", "P4-VQA完成"),
-        ("slides/slide-*.html", "P4-页面完成"),
-        ("style.json", "P3.5-风格锁定"),
-        ("outline.txt", "P3-大纲完成"),
-        ("search.txt", "P2-资料搜集完成"),
-        ("requirements-interview.txt", "P1-需求确认完成"),
-    ]
-    for pattern, step in reversed(milestones):
-        matches = list(run_dir.glob(pattern))
-        if matches:
-            return step
-    return "P0-从头开始"
+**执行**：
+```bash
+python SKILL_DIR/scripts/milestone_check.py OUTPUT_DIR/ --summary
 ```
 
-### 恢复规则
+**里程碑状态**：
+| 里程碑 | 判断条件 | 从哪里恢复 |
+|---------|---------|-----------|
+| P0 | 无产物 | Step 1 |
+| P1 | `requirements-interview.txt` 存在 | Step 2 |
+| P2 | `search.txt` 存在 | Step 3 |
+| P3 | `outline.json` 存在 | Step 4 |
+| P3.5 | `style.json` 存在 | Step 5a |
+| P4 | `slides/slide-*.html` 存在 | Step 6 |
+| P5 | `presentation-svg.pptx` 或 `presentation-png.pptx` 存在 | 完成 |
 
-| 规则 | 说明 |
-|------|------|
-| **无状态文件** | 工作流不依赖任何进度状态文件 |
-| **扫描磁盘产物** | 恢复点由磁盘已有文件推断 |
-| **部分完成正常** | 只要存在任意一页 HTML = 该页 P4 已完成 |
-| **Agent 决定** | 主 Agent 根据扫描结果决定调度哪些 Subagent |
-| **不回滚** | 恢复时绝不删除已写入的产物 |
-
-### 产物存在 = 里程碑达成
-
-| 产物 | 里程碑 |
-|------|--------|
-| `requirements-interview.txt` | P1 完成 |
-| `search.txt` | P2 完成 |
-| `outline.txt` | P3 完成 |
-| `style.json` | P3.5 风格锁定 |
-| `slides/slide-N.html`（任意） | P4 页面生成中 |
-| `png/slide-N.png`（全部） | P4 视觉 QA 完成 |
-| `presentation-svg.pptx` | P5 SVG 导出完成 |
-| `presentation-png.pptx` | P5 PNG 导出完成 |
+**规则**：
+- 部分 HTML 文件存在即视为 P4（从 Step 6 继续）
+- 恢复时绝不删除已写入的产物
+- 可用 `milestone_check.py --check P3` 验证特定里程碑
 
 ---
 
@@ -291,6 +314,34 @@ def find_recovery_point(run_dir: Path) -> str:
 
 ---
 
+### Step 3.5: 合同校验
+
+在进入内容策划前，校验已生成 artifacts 的合同完整性：
+
+**执行**：
+```bash
+# 校验大纲合同
+python SKILL_DIR/scripts/contract_validator.py outline OUTPUT_DIR/outline.json
+
+# 校验风格定义合同（如果 style.json 已存在）
+python SKILL_DIR/scripts/contract_validator.py style OUTPUT_DIR/style.json
+```
+
+**⚠️ 环境要求**: 需要 Python ≥ 3.8（`Tuple` 类型注解）。若 Python 版本过低导致导入失败，请升级 Python 或在支持的环境中运行。
+
+**大纲合同**（`outline.json` 必须包含）：
+- `ppt_outline.parts[]` — 至少 1 个 part
+- 每个 part 有 `part_title` 和 `pages[]` — 每个 part 至少 2 页内容页
+- 每页有 `title` 和 `content`
+
+**风格合同**（`style.json` 必须包含）：
+- `style_id` — 16 种预设风格 ID 之一
+- `background`、`card`、`text`、`accent` — 全部存在
+
+**校验失败**：返回 Step 3 重新生成对应 artifact。
+
+---
+
 ### Step 4: 内容分配 + 策划稿 [禁止跳过 -- 必须等用户确认大纲后执行]
 
 > 将内容分配和策划稿生成合为一步。在思考每页应该放什么内容的同时，决定布局和卡片类型，更自然高效。
@@ -307,6 +358,26 @@ def find_recovery_point(run_dir: Path) -> str:
 向用户展示策划稿概览，建议等用户确认后再进入 Step 5。
 
 **产物**：每页策划卡 JSON 数组 -> 保存为 `OUTPUT_DIR/planning.json`
+
+---
+
+### Step 4.5: 策划稿校验
+
+在进入设计稿生成前，校验 planning.json 的密度契约：
+
+**执行**：
+```bash
+python SKILL_DIR/scripts/planning_validator.py OUTPUT_DIR/planning.json --strict --summary
+```
+
+**密度契约检查**（strict 模式）：
+- 内容页必须 **≥ 3 张卡片**
+- 内容页必须 **≥ 2 种 card_type**
+- 内容页必须 **≥ 1 张 data 类型卡片**
+
+**⚠️ 环境要求**: 需要 Python ≥ 3.8（`Tuple` / `List` 类型注解）。若 Python 版本过低导致导入失败，请升级 Python 或在支持的环境中运行。
+
+**校验失败**：返回 Step 4 补充页面内容。
 
 ---
 
@@ -440,9 +511,21 @@ PageAgent-N
     ├── 2. 读取 style.json
     ├── 3. 读取 images/planning-N.png（如果有）
     ├── 4. 生成 slide-N.html
-    ├── 5. DOM 自审（溢出/伪元素/硬编码检查）
+    ├── 5. ⛔ DOM 断言（强制，必须）— 执行 visual_qa.py：
+    │       python SKILL_DIR/scripts/visual_qa.py OUTPUT_DIR/slides/slide-N.html --verbose
+    │       检查：overflow:hidden / 禁止 CSS / SVG text / 图片路径有效
+    │       FORBIDDEN 项目（conic-gradient / ::before-decoration / border-triangle）直接失败
+    │       失败重试 1 次，仍失败则报告 Main Agent 介入修复 HTML 后继续
     └── 6. 输出：--- PAGE N COMPLETE ---
 ```
+
+**DOM 断言检查项**：
+- 根容器有 `overflow:hidden`
+- 无 `::before`/`::after` 用于视觉装饰
+- 无 `conic-gradient`
+- 无 CSS border 三角形技巧
+- 无 SVG `<text>` 元素（用 HTML overlay 替代）
+- 所有 `<img>` src 路径指向已存在的文件
 
 **失败处理**：
 - 单页失败不影响其他页面
@@ -485,8 +568,10 @@ Prompt #4 模板
 ```
 slides/*.html
   ├── html_packager.py --> preview.html
-  ├── html2svg.py --> svg/*.svg --> svg2pptx.py --> presentation-svg.pptx
-  └── html2png.py --> png/*.png --> png2pptx.py --> presentation-png.pptx
+  ├── html2svg.py --> svg/*.svg
+  ├── svg2pptx.py --> presentation-svg.pptx
+  ├── html2png.py --> png/*.png
+  └── png2pptx.py --> presentation-png.pptx
 ```
 
 **依赖检查**（首次运行自动执行）：
@@ -499,41 +584,44 @@ npm install puppeteer dom-to-svg 2>/dev/null
 
 1. **合并预览** -- 运行 `html_packager.py`
    ```bash
-   python SKILL_DIR/scripts/html_packager.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/preview.html
+   python SKILL_DIR/scripts/html_packager.py OUTPUT_DIR/slides/ \
+       -o OUTPUT_DIR/preview.html --title "PPT Preview"
    ```
 
-2. **SVG 转换** -- 运行 `html2svg.py`（DOM 直接转 SVG，保留 `<text>` 可编辑）
-   > **重要**：HTML 设计稿必须遵守 `references/pipeline-compat.md` 中的管线兼容性规则，否则转换后会出现元素丢失、位置错位等问题。
+2. **SVG 转换** -- 运行 `html2svg.py`
+   > **重要**：HTML 设计稿必须遵守 `references/pipeline-compat.md` 规则。
    ```bash
-   python SKILL_DIR/scripts/html2svg.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/svg/
+   python SKILL_DIR/scripts/html2svg.py OUTPUT_DIR/slides/ \
+       -o OUTPUT_DIR/svg/
    ```
 
-   底层用 dom-to-svg（自动安装），首次运行会 esbuild 打包。
-   **降级**：如果 Node.js 不可用或 dom-to-svg 安装失败，跳过 SVG 分支。
+   首次运行时会自动构建 dom-to-svg bundle（`dom-to-svg.bundle.js`）。
+   **降级**：如果 dom-to-svg 失败，SVG 分支中止，PNG 分支继续。
 
-3. **SVG PPTX 导出** -- 运行 `svg2pptx.py`（OOXML 原生 SVG 嵌入，PPT 365 可编辑）
+3. **SVG PPTX 导出** -- 运行 `svg2pptx.py`
    ```bash
-   python SKILL_DIR/scripts/svg2pptx.py OUTPUT_DIR/svg/ -o OUTPUT_DIR/presentation-svg.pptx --html-dir OUTPUT_DIR/slides/
+   python SKILL_DIR/scripts/svg2pptx.py OUTPUT_DIR/svg/ \
+       -o OUTPUT_DIR/presentation-svg.pptx \
+       --html-dir OUTPUT_DIR/slides/
    ```
 
-   PPT 365 中右键图片 -> "转换为形状" 即可编辑文字和形状。
+   PPT 365 中右键图片 -> "转换为形状" 即可编辑文字。
 
-4. **PNG 截图** -- 运行 `html2png.py`（Puppeteer 截图，支持并行）
+4. **PNG 截图** -- 运行 `html2png.py`
    ```bash
-   python SKILL_DIR/scripts/html2png.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/png/ --concurrency 4
+   python SKILL_DIR/scripts/html2png.py OUTPUT_DIR/slides/ \
+       -o OUTPUT_DIR/png/ -c 4
    ```
 
-   使用 Puppeteer 进行像素级截图，并发数控制并行线程数。
-   **降级**：如果 Node.js/Puppeteer 不可用，跳过 PNG 分支。
+   **降级**：如果 Playwright 不可用，跳过 PNG 分支（SVG 分支继续）。
 
-5. **PNG PPTX 导出** -- 运行 `png2pptx.py`（PNG 作为背景，跨平台 100% 视觉还原）
+5. **PNG PPTX 导出** -- 运行 `png2pptx.py`
    ```bash
-   python SKILL_DIR/scripts/png2pptx.py OUTPUT_DIR/png/ -o OUTPUT_DIR/presentation-png.pptx
+   python SKILL_DIR/scripts/png2pptx.py OUTPUT_DIR/png/ \
+       -o OUTPUT_DIR/presentation-png.pptx
    ```
 
-   PNG 填满每页幻灯片作为背景，文字不可编辑但视觉效果像素级还原。
-
-6. **通知用户** -- 告知产物位置和使用方式：
+7. **通知用户** -- 告知产物位置和使用方式：
    - `preview.html` -- 浏览器打开即可翻页预览
    - `presentation-svg.pptx` -- SVG 矢量 PPTX（文字可编辑，PPT 365 "转换为形状"）
    - `presentation-png.pptx` -- PNG 像素 PPTX（视觉效果完美，文字不可编辑）

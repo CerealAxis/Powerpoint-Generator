@@ -117,8 +117,6 @@ Powerpoint-Generator/
     ├── contract_validator.py   # 合同校验
     ├── planning_validator.py   # Planning JSON 校验
     ├── milestone_check.py      # 里程碑验收
-    ├── prompt_harness.py       # 动态 Prompt 生成
-    ├── resource_loader.py      # 资源路由
     ├── visual_qa.py           # 视觉 QA（截图+审计）
     └── subagent_logger.py      # Subagent 运行时日志
 ```

@@ -11,6 +11,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Tuple, List
 
 
 # -------------------------------------------------------------------
@@ -33,7 +34,7 @@ LAYOUTS = [
 # -------------------------------------------------------------------
 # 校验规则
 # -------------------------------------------------------------------
-def validate_page_planning(page_data: dict, page_num: int, strict: bool = False) -> list:
+def validate_page_planning(page_data: dict, page_num: int, strict: bool = False) -> List[str]:
     """校验单页 planning JSON。"""
     issues = []
 
@@ -119,7 +120,7 @@ def validate_page_planning(page_data: dict, page_num: int, strict: bool = False)
     return issues
 
 
-def validate_planning_file(file_path: Path, page_num: int = None, strict: bool = False) -> tuple[bool, list]:
+def validate_planning_file(file_path: Path, page_num: int = None, strict: bool = False) -> Tuple[bool, List[str]]:
     """校验 planning JSON 文件。"""
     if not file_path.exists():
         return False, [f"File not found: {file_path}"]
